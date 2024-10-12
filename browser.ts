@@ -19,9 +19,26 @@ import {
   SimpleIndexStore
 } from "llamaindex";
 import { DEFAULT_NAMESPACE } from "@llamaindex/core/global";
-import { ChromaClient, CollectionType } from "chromadb";
 
+import { ChromaClient, Embedding } from "chromadb";
 
+/*
+Tool to add web elements to vector store using chromadb
+The data is not persisted so this must be run after starting chroma: docker run -p 8000:8000 chromadb/chroma
+1. Read the elements of the html svg using selenium-webdriver. The driver uses an async function findElement using a path to return the requested svg data
+public  async findElement(el: string): Promise<WebElement[]> where el eg is  const promiseRect = this.findElement("//*[name()='rect']");
+2. Set the data in the vector store eg public async setRectData(counter: number, value: string)
+ const collection = await this.client.getOrCreateCollection({
+      name: "SVGCollection",
+    });
+    
+    await collection.add({
+      documents: [
+        value,
+      ],
+      ids: ["rect" + counter],
+    });
+*/
 
 //import { Page, NewablePage, WebComponent, WaitCondition } from './';
 export type WaitCondition = (browser: Browser) => Promise<boolean>;
@@ -138,6 +155,7 @@ export class Browser {
   public client:ChromaClient = new ChromaClient();
   
   public async setChromadb(): Promise<any>{
+  
     const collection = await this.client.getOrCreateCollection({
       name: "SVGCollection",
     });
@@ -158,8 +176,8 @@ export class Browser {
     let ticks_ = new ticks();
     try{
 
-      const fourth  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
-      fourth.then(value =>{
+      const tick  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
+      tick.then(value =>{
         let i = 0;
         for (var v of value) {
           v.getAttribute("transform").then(v1 => {
@@ -169,8 +187,8 @@ export class Browser {
           })
         }
     })
-     /* const first =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
-      first.then(value =>{
+      const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
+      globalTransform.then(value =>{
         let i = 0;
         for (var v of value) {
           v.getAttribute("transform").then(v1 => {
@@ -277,10 +295,10 @@ export class Browser {
                       txt.x2_text = v_;
                       txt.x2 = val;
                       txt.isX2 = true;
-                      console.log(i++);
+                     /* console.log(i++);
                       console.log("textx2", txt.x2);
                       console.log("txt.x2_text", txt.x2_text)
-                      console.log("txt.toString()1", txt.toString())
+                      console.log("txt.toString()1", txt.toString())*/
                       this.setLineTextData(i++, txt.toString(), txt.isX2);
                   } 
                   
@@ -291,9 +309,9 @@ export class Browser {
                       txt.y2 = val;
                       txt.isX2 = false;
                       this.setLineTextData(j++, txt.toString(), txt.isX2);
-                    console.log(j++);
+                   /* console.log(j++);
                     console.log("txt.toString()2", txt.toString())
-                    console.log("texty2", txt.y2);
+                    console.log("texty2", txt.y2);*/
                     console.log("txt.y2_text", txt.y2_text)
                   } 
 
@@ -302,116 +320,12 @@ export class Browser {
           }
       })
      
-    */
-          /*  const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));///*[name()="svg"]
-            cost sec  = this.driver.findElements(By.xpath("//*[name()='g']/*[name()='path']"));
-            const third = this.driver.findElements(By.xpath("//*[name()='rect']"));
-            const fourth = this.driver.findElements(By.xpath("//*[name()='path']"));
-            const fifth = this.driver.findElements(By.xpath("//*[name()='text']"));
-            const sixth  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
-            const seventh  = this.driver.findElements(By.xpath("//*[name()='line']"));
-
-            seventh.then(value =>{
-                for (var v of value) {
-                    const ln = new tickLine();
-                    v.getAttribute("y2").then(val =>{
-                        if(val){
-                            console.log("text  line y2", val);
-                            ln.y2 = +val;
-                        } 
-                    })
-                    v.getAttribute("x2").then(val =>{
-                        if(val){
-                            console.log("text  line x2", val);
-                            ln.x2 = +val;
-                        } 
-                    })
-                    tempLine.push(ln);
-                    
-                }
-                
-            })
-          
-            fifth.then(value =>{
-                
-                for (var v of value) {
-                    v.getText().then(val =>{
-                        console.log("text", val);
-                    })
-                    const txt = new tickText();
-                    v.getAttribute("x").then(val =>{
-                        if(val){
-                            console.log("text text x", val);
-                            txt.x2_text = val;
-                        } 
-                    })
-                    v.getAttribute("y").then(val =>{
-                        if(val){
-                            console.log("text text y", val);
-                            txt.y2_text = val;
-                        } 
-                    })
-                    tempText.push(txt);
-
-                }
-            })
-            fourth.then(value =>{
-                console.log("len",value.length);
-                for (var v of value) {
-                    let p = new path();
-                    v.getAttribute("d").then(val =>{
-                        console.log("d", val);
-                        p.val = val;
-                    })
-                    paths_.values.push(p);
-                }
-            })
-            third.then(value => {
-                
-                for (var v of value) {
-                    const r = new rect();
-                    v.getRect().then(val =>{
-                    console.log("x", val.x);
-                    console.log("y", val.y);
-                    console.log("width", val.width);
-                    console.log("height", val.height);
-                    r.x = val.x;
-                    r.y = val.y;
-                    r.width = val.width;
-                    r.height = val.height;
-                    rects_.values.push(r);
-                })
-                this.els.rects = rects_;
-            }
-            });*/
+    
+         
     } catch(Exception){
         const  svg_elements = "<svg>No svg elements were found, indicating a syntax error<svg>";
        
     }
- /*   console.log("templine", tempLine.length);
-    tempLine.forEach(line => {
-        tempText.forEach(text => {
-            let tik: tick = new tick();
-            tik.line.x2 = line.x2;
-            tik.text.x2_text= text.x2_text;
-            ticks_.values.push(tik);
-
-            let tik_1: tick = new tick();
-            tik_1.line.y2 = line.y2;
-            tik_1.text.x2_text= text.x2_text;
-            ticks_.values.push(tik_1);
-        })
-    })
-    const elements: SVGElements = new SVGElements();
-    elements.paths = paths_;
-    elements.rects = rects_;
-    elements.ticks = ticks_;
-
-    elements.ticks.values.forEach(val => {
-      console.log("tick line", val.line);
-      console.log("tick text", val.text);
-    })*/
-    //this.getChromaData();
   }
 
   public async setSVGData(counter: number, value: string){
@@ -443,6 +357,7 @@ export class Browser {
   }
 
   public async setRectData(counter: number, value: string){
+    console.log("rect...", value);
     const collection = await this.client.getOrCreateCollection({
       name: "SVGCollection",
     });
