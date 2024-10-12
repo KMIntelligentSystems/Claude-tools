@@ -7,8 +7,19 @@ import {
    // VectorStoreIndex,
     storageContextFromDefaults,
   } from "llamaindex";
+
+  import * as fs from 'fs';
+
+  /*Get web elements from chroma and create xml
+   1. Get the svg data from chromadb using collection and the names: svg01, svg02, up to 4 translate, and 40 for rect, path, lineX2, lineY2, line_txtx2, line_txty2
+   2. Create the xml from the reslts of 1. Get the details from test.js to complete this.
+  */
   
+   /*Put xml from above into chromaDb
+    Temp: read example xml and put in chroma in setSVGXMLData()
+   */
   const collectionName = "SVGCollection";
+  const collectionSVG_XML = "SVG_XMLCollection";
 
   class rect {
     x: number = 0;
@@ -42,13 +53,28 @@ class svg{
   height: string = "";
   width: string = "";
 }
+
+  export async function setSVGXMLData(){
+    const data = fs.readFileSync('./svgAsXML.txt', 'utf-8');
+    const client:ChromaClient = new ChromaClient();
+    const collection:any = await client.getOrCreateCollection({
+          name:  collectionSVG_XML,
+    });
+
+    await collection.add({
+      documents: [
+        data,
+      ],
+      ids: ["svg_xml_elements"],
+    });
+  }
   
   export async function getSVGData(){
       const client:ChromaClient = new ChromaClient();
       const collection:any = await client.getOrCreateCollection({
             name: collectionName,
       });
-    /*  const svgData: string[] = [];
+      const svgData: string[] = [];
       svgData.push("svg0");
       svgData.push("svg1");
       const res = await collection.get({
@@ -76,7 +102,7 @@ class svg{
       });
       let rects_: rect[] = response.documents as rect[];
   
-      //console.log('rect', response.documents)
+      console.log('rect', response.documents)
 
       const paths: string[] = [];
       const path = "path";
@@ -88,7 +114,7 @@ class svg{
         ids: paths,
       });
       let paths_:string[] =  response6.documents;
-      //console.log('path', response6.documents)
+      console.log('path', response6.documents)
 
       const linesx2: string[] = [];
       const linex2 = "linex2";
