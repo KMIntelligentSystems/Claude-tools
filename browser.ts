@@ -20,7 +20,10 @@ import {
 } from "llamaindex";
 import { DEFAULT_NAMESPACE } from "@llamaindex/core/global";
 
-import { ChromaClient, Embedding } from "chromadb";
+import { ChromaClient, Embedding } from "chromadb"; 
+//import {setRectDbEmbedding, getRectDbEmbedding} from './vectorstoreEmbedding'
+import {setSVGRect, setSVGData, setTransformsData, setTranslateData, setTickLineData, setTickTextData, setPathData} from './tools'
+import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, setPaths, setRect} from './test'
 
 /*
 Tool to add web elements to vector store using chromadb
@@ -175,152 +178,173 @@ export class Browser {
     let paths_ = new paths();
     let ticks_ = new ticks();
     try{
+      
+        const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));
+            //provides svg h and w
+            first.then(value =>{
+                let i = 0;
+                for (var v of value) {
+                  v.getAttribute("height").then(h => {
+                  
+                    v.getAttribute("width").then(w => {
+                      setSVG(h,w).then(val => {
+                        setSVGData(val);
+                      })
+                     
+                    })
+                  })
+                }
+            })
+        /*    const second =  this.driver.findElements(By.xpath("//*[name()='svg']"));
+            second.then(value =>{
+              let i = 0;
+              for (var v of value) {
+                v.getAttribute("width").then(w => {
+                  setSVGData(w,i, "width");
+                })
+              }
+          })*/
 
+       /* const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
+          globalTransform.then(value =>{
+            let i = 0;
+            for (var v of value) {
+              v.getAttribute("transform").then(v1 => {
+               
+                if(v1){
+                  setTransforms(v1).then(t => {
+                    setTransformsData(v1, i);
+                  })
+                  //provides for <transforms><x><y> translate(60,20) translate(0,340)
+                  //setTransforms([ 'translate(40,10)', 'translate(0, 360)' ]);
+                  //this.setGlobalTranslateData(i, v1)
+                  i++;
+                }
+              })
+            }
+        })
       const tick  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
       tick.then(value =>{
         let i = 0;
         for (var v of value) {
           v.getAttribute("transform").then(v1 => {
-          //  console.log(i, v1);
-            this.setTransformData(i, v1);
+            //Provides translate(0,164.39503438574548) for all ticks
+           // this.setTransformData(i, v1);
+           setTranslate(v1).then(t => {
+            setTranslateData(v1, i);
+           })
             i++;
           })
         }
     })
-      const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
-      globalTransform.then(value =>{
-        let i = 0;
-        for (var v of value) {
-          v.getAttribute("transform").then(v1 => {
-           
-            if(v1){
-              this.setGlobalTranslateData(i, v1)
-              i++;
-            }
-          })
-        }
-    })
-           const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));
-              
-              first.then(value =>{
 
-                let i = 0;
-                for (var v of value) {
-                  v.getAttribute("height").then(h => {
-                    this.setSVGData(0, "height: "+ h);
-                  })
-                }
-            })
-            const second =  this.driver.findElements(By.xpath("//*[name()='svg']"));
-            second.then(value =>{
-              for (var v of value) {
-                v.getAttribute("width").then(w => {
-                  this.setSVGData(1, "width: "+ w);
-                })
-              }
+    const promiseLine = this.findElement("//*[name()='line']");
+    promiseLine.then(value =>{
+      let i = 0;
+      let j = 0;
+      for (var v of value) {
+          const ln = new tickLine();
+          v.getAttribute("y2").then(val =>{
+              if(val){
+                  ln.y2 = +val;
+                  ln.isX2 = false;
+                  setTickLines(val, "y2").then(l => {
+                    setTickLineData(val,i,"y2")
+                  });
+                  i++;
+                //  console.log("ln y2", ln.y2)
+                 // this.setLineData(i++,ln.toString(), ln.isX2);                    
+                 } 
           })
+          v.getAttribute("x2").then(val =>{
+              if(val){
+                  ln.x2 = +val;
+                  ln.isX2 = true;
+                  setTickLines(val, "x2").then(l => {
+                    setTickLineData(val,j,"x2")
+                  });
+                  j++;
+                //  console.log("ln x2", ln.x2)
+                 // this.setLineData(j++,ln.toString(), ln.isX2);
+              } 
+             
+          })
+          
+      } 
+  })
+     
+  const promiseLineTxt = this.findElement(("//*[name()='text']"));
+  promiseLineTxt.then(value =>{
+    let i = 0;
+    let j = 0;
+    for (var v of value) {
+        let v_ = "";
+        v.getText().then(val =>{
+          v_ = val; 
+        })
+        const txt = new tickText();
+        v.getAttribute("x").then(val =>{
+            if(val){
+                txt.x2_text = v_;
+                txt.x2 = val;
+                txt.isX2 = true;
+                setTickText(v_, val,"x2").then(l => {
+                   setTickTextData(l, i, "x2");
+                });
+                i++;
+               / console.log(i++);
+                console.log("textx2", txt.x2);
+                console.log("txt.x2_text", txt.x2_text)
+                console.log("txt.toString()1", txt.toString())/
+                //this.setLineTextData(i++, txt.toString(), txt.isX2);
+            } 
+            
+        })
+        v.getAttribute("y").then(val =>{
+            if(val){
+                txt.y2_text = v_;
+                txt.y2 = val;
+                txt.isX2 = false;
+                setTickText(v_, val,"y2").then(l => {
+                  setTickTextData(l, j, "y2");
+               });
+               j++;
+            } 
+
+        })
+    }
+})
+          
            
-           const promiseRect = this.findElement("//*[name()='rect']");
-            let i: number = 2;
+          const promiseRect = this.findElement("//*[name()='rect']");
+            let i: number = 0;
             promiseRect.then(value => {
-                
                 for (var v of value) {
-                    
-                    const r = new rect();
                     v.getRect().then(val =>{
-                    r.x = val.x;
-                    r.y = val.y;
-                    r.width = val.width;
-                    r.height = val.height;
-                    //this.log(r.toString());
-                    this.setRectData( i, r.toString());
+                    setRect(val.x, val.y, val.height, val.width).then(r => {
+                      this.setRectData( i, r);
+                    })
                     i++;
                 })
             } 
             });
 
-           const promisePath = this.findElement("//*[name()='path']");
+            const promisePath = this.findElement("//*[name()='path']");
             promisePath.then(value =>{
               let i = 0;
               for (var v of value) {
                   let p = new path();
                   v.getAttribute("d").then(val =>{
-                      console.log("d", val);
                       p.val = val;
                       i++;
-                      this.setPathData(i, p);
+                      setPaths(val).then(p => {
+                        setPathData(p, i);
+                      })
+                     // this.setPathData(i, p);
                   })
                  
               }
-          })
-         
-          const promiseLine = this.findElement("//*[name()='line']");
-          promiseLine.then(value =>{
-            let i = 0;
-            let j = 0;
-            for (var v of value) {
-                const ln = new tickLine();
-                v.getAttribute("y2").then(val =>{
-                    if(val){
-                        ln.y2 = +val;
-                        ln.isX2 = false;
-                        console.log("ln y2", ln.y2)
-                        this.setLineData(i++,ln.toString(), ln.isX2);                    
-                       } 
-                })
-                v.getAttribute("x2").then(val =>{
-                    if(val){
-                        ln.x2 = +val;
-                        ln.isX2 = true;
-                        console.log("ln x2", ln.x2)
-                        this.setLineData(j++,ln.toString(), ln.isX2);
-                    } 
-                   
-                })
-                
-            } 
-        })
-        const promiseLineTxt = this.findElement(("//*[name()='text']"));
-        promiseLineTxt.then(value =>{
-          let i = 0;
-          let j = 0;
-          for (var v of value) {
-              let v_ = "";
-              v.getText().then(val =>{
-                v_ = val; 
-              })
-              const txt = new tickText();
-              v.getAttribute("x").then(val =>{
-                  if(val){
-                      txt.x2_text = v_;
-                      txt.x2 = val;
-                      txt.isX2 = true;
-                     /* console.log(i++);
-                      console.log("textx2", txt.x2);
-                      console.log("txt.x2_text", txt.x2_text)
-                      console.log("txt.toString()1", txt.toString())*/
-                      this.setLineTextData(i++, txt.toString(), txt.isX2);
-                  } 
-                  
-              })
-              v.getAttribute("y").then(val =>{
-                  if(val){
-                      txt.y2_text = v_;
-                      txt.y2 = val;
-                      txt.isX2 = false;
-                      this.setLineTextData(j++, txt.toString(), txt.isX2);
-                   /* console.log(j++);
-                    console.log("txt.toString()2", txt.toString())
-                    console.log("texty2", txt.y2);*/
-                    console.log("txt.y2_text", txt.y2_text)
-                  } 
-
-              })
-             // i++;
-          }
-      })
-     
-    
+          })*/
          
     } catch(Exception){
         const  svg_elements = "<svg>No svg elements were found, indicating a syntax error<svg>";
@@ -328,17 +352,22 @@ export class Browser {
     }
   }
 
-  public async setSVGData(counter: number, value: string){
+  public async setSVGData_(counter: number, value: string){
     
     const collection = await this.client.getOrCreateCollection({
-      name: "SVGCollection",
+      name: "svg",
     });
-    
+    console.log(value)
+    console.log(counter)
+    let type = "h";
+    if(value.includes("width")){
+      type = "w"
+    }
     await collection.add({
       documents: [
         value,
       ],
-      ids: ["svg"+ counter],
+      ids: ["svg_"+ type],
     });  
   }
   
@@ -357,6 +386,10 @@ export class Browser {
   }
 
   public async setRectData(counter: number, value: string){
+    setSVGRect(value, counter);
+  }
+
+  public async setRectData_(counter: number, value: string){
     console.log("rect...", value);
     const collection = await this.client.getOrCreateCollection({
       name: "SVGCollection",
@@ -446,7 +479,7 @@ export class Browser {
       nResults: 1, // how many results to return
     });
 
-    console.log("results", results);
+   // console.log("results", results);
   }
 
   public log(val: string){ 
