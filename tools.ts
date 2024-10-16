@@ -9,6 +9,9 @@ import {
   } from "llamaindex";
 
   import * as fs from 'fs';
+  import {setRectDbEmbedding, getRectDbEmbedding, setSVGDbEmbedding, setTransformsDbEmbedding, 
+    setTranslateDbEmbedding, setTickLineDbEmbedding, setTickTextDbEmbedding, setPathDbEmbedding
+  } from './vectorstoreEmbedding'
 
   /*Get web elements from chroma and create xml
    1. Get the svg data from chromadb using collection and the names: svg01, svg02, up to 4 translate, and 40 for rect, path, lineX2, lineY2, line_txtx2, line_txty2
@@ -21,55 +24,48 @@ import {
   const collectionName = "SVGCollection";
   const collectionSVG_XML = "SVG_XMLCollection";
 
-  class rect {
-    x: number = 0;
-    y: number = 0;
-    height: number = 0;
-    width: number = 0;
-}
+   /*********************************
+   * Functions called by browser for each svg element
+   * mapped to a vector store embedding 
+   *********************************/
+  export async function setSVGData(val: string){
+    await setSVGDbEmbedding(val);
+  }
 
-class path{
-   val: string = "";
-}
+  export async function getSVGData(id: number[]){
+    //getRectDbEmbedding( ids);
+  }
 
-class linex2{
-    x2: number = 0;
-}
+  export async function setTransformsData(val: string, id: number){
+    setTransformsDbEmbedding(val, id);
+  }
 
-class liney2{
-  y2: number = 0;
-}
-class lineTextx2{
-    x2: string = "";
-    text: string = "";
-}
-
-class lineTexty2{
-  y2: string = "";
-  text: string = "";
-}
-
-class svg{
-  height: string = "";
-  width: string = "";
-}
-
-  export async function setSVGXMLData(){
-    const data = fs.readFileSync('./svgAsXML.txt', 'utf-8');
-    const client:ChromaClient = new ChromaClient();
-    const collection:any = await client.getOrCreateCollection({
-          name:  collectionSVG_XML,
-    });
-
-    await collection.add({
-      documents: [
-        data,
-      ],
-      ids: ["svg_xml_elements"],
-    });
+  export async function setTranslateData(val: string, id: number){
+    setTranslateDbEmbedding(val, id);
   }
   
-  export async function getSVGData(){
+  export async function setTickLineData(val: string, id: number, type: string){
+    setTickLineDbEmbedding(val, id, type);
+  }
+
+  export async function setTickTextData(val: string, id: number, type: string){
+    setTickTextDbEmbedding(val, id, type);
+  }
+
+   export async function setPathData(val: string, id: number){
+    setPathDbEmbedding(val, id);
+   }
+
+  export async function setSVGRect(rect: string, id: number){
+    await setRectDbEmbedding(rect, id);
+  }
+
+  export async function getSVGRect(ids: number[]){
+    await getRectDbEmbedding();
+  }
+
+  
+  /*export async function getSVGData_(){
       const client:ChromaClient = new ChromaClient();
       const collection:any = await client.getOrCreateCollection({
             name: collectionName,
@@ -166,7 +162,7 @@ class svg{
         ids: linestxty2,
       });
       let linestxty2_: lineTexty2[] = response4.documents as lineTexty2[];
-      //console.log('linetxty2', response4.documents)*/
+      //console.log('linetxty2', response4.documents)
 
       const transforms: string[] = [];
       const transform = "transform";
@@ -179,7 +175,6 @@ class svg{
       let transforms_: string[] = response5.documents
       console.log("id", response5.ids)
       console.log('transform', response5.documents)
-
      // setTree(svgData_, globalTransforms_, rects_,paths_, linesx2_,linestxtx2_,linesy2_,linestxty2_,transforms_);
   }
 
@@ -231,7 +226,7 @@ class svg{
     + transform + x + x2 + x_end + y + y2 + y_end + transform_end + transforms_end;
     
     return transform;
-  }
+  }*/
 
   function setPath(paths: string[]): string{
     const path: string = "<path>"
