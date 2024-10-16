@@ -68,11 +68,11 @@ function main(){
     let start = "<svg>";
     let end = "</svg>"
     let frame = start;
-    let svg_ = setSVG(svgData);
+    let svg_ = setSVG_(svgData);
     frame = frame + svg_;
-    let trans = setTransforms([ 'translate(40,10)', 'translate(0, 360)' ]);
+    let trans = setTransforms_([ 'translate(40,10)', 'translate(0, 360)' ]);
     frame = frame + trans;
-    let paths = setPaths(["M0,6V0H390V6", "M-6,360H0V0H-6"]);
+    let paths = setPaths_(["M0,6V0H390V6", "M-6,360H0V0H-6"]);
     frame = frame + paths;
     let ticks = setTicks(lineTransforms, lineX2, lineY2, lineTextX2, lineTextY2);
     frame = frame + ticks;
@@ -81,7 +81,122 @@ function main(){
     console.log(frame);
 }
 
-function setSVG(svg: string[]): string{
+export async function setSVG(height: string, width: string){
+    console.log("hhh",height)
+    console.log("www",width)
+    let res: string = "";
+    let h = "<height>";
+    let h_end = "</height>";
+    let w = "<width>";
+    let w_end = "</width>";
+    
+    res = h + height + h_end + w + width + w_end;
+   
+    return res;
+}
+
+export async function setTranslate(trans: string){
+    const start = "translate(".length;
+    const end = trans.length - 1;
+    let vals:any[] = trans.substring(start, end).split(",");
+    let x = "<x>" + vals[0] + "</x>";
+    let y = "<y>" + vals[1] + "</y>";
+    let res = "<translate>" + x + y + "</translate>";
+
+    return res;
+}
+
+export async function setTickLines(line: string, type: string){
+    let line_x2 = "";
+    let line_y2 = "";
+    if(type == "y2"){
+        line_y2 = line;
+        return line_y2;
+    } else{
+        line_x2 = line;
+        return line_x2;
+    }
+}
+
+export async function setTickText(text: string, pos: string, type: string){
+    let line_text_x = "<line_text_x>";
+    let line_text_x_end = "</line_text_x>";
+    let line_text_y = "<line_text_y>";
+    let line_text_y_end = "</line_text_y>";
+    let x2 = "<line_len_x>";
+    let x2_end = "</line_len_x>"
+    let y2 = "<line_len_y>";
+    let y2_end = "</line_len_y>"
+    //<line_len_y>6</line_len_y><line_text_y>5000</line_text_y>
+    if(type == "y2"){
+        y2 = y2 + pos + y2_end;
+        line_text_y =line_text_y + text + line_text_y_end;
+        return line_text_y;
+    } else{
+        x2 = x2 + pos + x2_end;
+        line_text_x =line_text_x + text + line_text_x_end;
+        return line_text_x;
+    }
+}
+
+
+export async function setPaths(p: string){
+    //"M0,6V0H390V6"
+    let paths_: string = "<paths>";
+    let path = "<path>";
+    let path_end = "</path>";
+    let move_from = "<move_from>";
+    let move_from_end = "</move_from>";
+    
+    let splitArray = p.split(",");
+      
+    let start = splitArray[0];
+    let end: string = splitArray[1] as string;
+    start = start?.substring(1);
+    path = path + move_from + start + move_from_end;
+        
+    let commands = getPathCommands(end);
+    path = path + commands + path_end;
+
+    return path;
+  }
+
+  export async function setTransforms(trans1: string){
+    let transform: string = "<transform>";
+    let transform_end: string = "</transform>";
+    let x: string = "<x>";
+    let x_end: string = "</x>";
+    let y: string = "<y>";
+    let y_end: string = "</y>";
+
+    trans1 = trans1.replace("translate(", "");
+    trans1 = trans1.replace(")", "");
+    let splitArray = trans1.split(",");
+    const x1 = splitArray[0];
+    const y1 = splitArray[1];
+   
+    let transforms = transform + x + x1 + x_end + y + y1 + y_end + transform_end;
+    return transforms;
+  }
+
+export async function setRect(x_: number, y_: number, h: number, w: number){
+    //let res: string = "<rects>";
+    let rect = "<rect>";
+    let rect_end = "</rect>";
+    let x = "<x>";  
+    let x_end = "</x>";
+    let y = "<y>";
+    let y_end = "</y>";
+    let width = "<width>"
+    let width_end = "</width>"
+    let height = "<height>"
+    let height_end = "</height>"
+
+    let res = rect + x + x_ + x_end + y + y_ + y_end + width + w + width_end + height + h + height_end + rect_end;
+    return res;
+}
+
+function setSVG_(svg: string[]): string{
     let res: string = "";
     let h = "<height>";
     let h_end = "</height>";
@@ -104,8 +219,8 @@ function setSVG(svg: string[]): string{
    
     return res;
 }
-function setRects(rects: rect[]): string[]{
-    const res: string[] = [];
+function setRects(rects: rect[]): string{
+    let res: string = "<rects>";
     let rect = "<rect>";
     let rect_end = "</rect>";
     let x = "<x>";  
@@ -118,24 +233,50 @@ function setRects(rects: rect[]): string[]{
     let height_end = "</height>"
     rects.forEach(r =>{
         let res_ = rect + x + r.x + x_end + y + r.y + y_end + width + r.width + width_end + height + r.height + height_end + rect_end;
-        res.push(res_);
+        res = res + res_;
     })
-    console.log(res);
-    return res;
+
+    return res + "</rects>";
 }
-function setTicks(lineTransforms: string[], lineX2: linex2[], lineY2: liney2[],  lineTextX2: lineTextx2[],lineTextY2: lineTexty2[]): string[]{
+
+
+
+
+
+
+
+
+export async function setRect_(x_: number, y_: number, h: number, w: number){
+    //let res: string = "<rects>";
+    let rect = "<rect>";
+    let rect_end = "</rect>";
+    let x = "<x>";  
+    let x_end = "</x>";
+    let y = "<y>";
+    let y_end = "</y>";
+    let width = "<width>"
+    let width_end = "</width>"
+    let height = "<height>"
+    let height_end = "</height>"
+
+    let res = rect + x + x_ + x_end + y + y_ + y_end + width + w + width_end + height + h + height_end + rect_end;
+    console.log(res);
+}
+
+
+function setTicks(lineTransforms: string[], lineX2: linex2[], lineY2: liney2[],  lineTextX2: lineTextx2[],lineTextY2: lineTexty2[]): string{
     let tick_h = "<tick_horizontal>";
     let tick_end_v = "</tick_vertical>";
     let tick_v = "<tick_vertical>";
     let tick_end_h = "</tick_horizontal>";
     let transform = "<transform>";
     let transform_end = "</transform>";
-    let line_y = "<line_y>";
-    let line_x = "<line_x>";
-    let line_end_y = "</line_y>";
+    let line_y = "<line_len_y>";
+    let line_x = "<line_len_x>";
+    let line_end_y = "</line_len_y>";
     let line_text_y = "<line_text_y>";
     let line_text_end_y = "</line_text_y>";
-    let line_end_x = "</line_x>";
+    let line_end_x = "</line_len_x>";
     let line_text_x = "<line_text_x>";
     let line_text_end_x = "</line_text_x>";
     
@@ -155,23 +296,37 @@ function setTicks(lineTransforms: string[], lineX2: linex2[], lineY2: liney2[], 
     let transformY = "";
     let index = 0;
     transformCollection1.forEach(v => {
-        transformY = transformY + transform + v.transform + line_y + lineY2[index]?.y2 + line_end_y + line_text_y + lineTextY2[index++]?.text + line_text_end_y + transform_end + '\n';
+        let trn: string = setTranslate_(v.transform);
+        transformY = transformY + transform + trn + line_y + lineY2[index]?.y2 + line_end_y + line_text_y + lineTextY2[index++]?.text + line_text_end_y + transform_end + '\n';
     })
     let transformX = "";
     index = 0;
     transformCollection2.forEach(v => {
-        transformX = transformX + transform + v.transform + line_x + lineX2[index]?.x2 + line_end_x + line_text_x + lineTextX2[index++]?.text + line_text_end_x + transform_end + '\n';
+        let trn: string = setTranslate_(v.transform);
+        transformX = transformX + transform + trn + line_x + lineX2[index]?.x2 + line_end_x + line_text_x + lineTextX2[index++]?.text + line_text_end_x + transform_end + '\n';
     
     })
     transformX = tick_h + transformX + tick_end_h;
     transformY = tick_v + transformY + tick_end_v;
 
-    let transArray: string[] = [];
-    transArray.push(transformY);
-    transArray.push(transformX);
-    return transArray;
+    let trans: string = "<ticks>";
+    trans = trans + transformY;
+    trans = trans + transformX;
+    return trans + "</ticks>";
 }
-function setTransforms(globalTransforms: string[]):string{
+
+function setTranslate_(trans: string):string{
+    const start = "translate(".length;
+    const end = trans.length - 1;
+    let vals:any[] = trans.substring(start, end).split(",");
+    let x = "<x>" + vals[0] + "</x>";
+    let y = "<y>" + vals[1] + "</y>";
+    let res = "<translate>" + x + y + "</translate>";
+
+    return res;
+}
+
+function setTransforms_(globalTransforms: string[]):string{
     let transforms: string = "<transforms>";
     let transforms_end: string = "</transforms>";
     let transform: string = "<transform>";
@@ -179,7 +334,7 @@ function setTransforms(globalTransforms: string[]):string{
     let x: string = "<x>";
     let x_end: string = "</x>";
     let y: string = "<y>";
-    let y_end: string = "<y>";
+    let y_end: string = "</y>";
     let trans1:string = globalTransforms[0] as string;
     let trans2: string = globalTransforms[1] as string;
     trans1 = trans1.replace("translate(", "");
@@ -198,8 +353,11 @@ function setTransforms(globalTransforms: string[]):string{
     return transforms;
   }
 
-  function setPaths(paths: string[]): string[]{
-    let paths_: string[] = [];
+ 
+
+
+  function setPaths_(paths: string[]): string{
+    let paths_: string = "<paths>";
     let path = "<path>";
     let path_end = "</path>";
     let move_from = "<move_from>";
@@ -213,14 +371,15 @@ function setTransforms(globalTransforms: string[]):string{
         if(splitArray){
             start = splitArray[0];
             end = splitArray[1];
+            start = start.substring(1);
             path = path + move_from + start + move_from_end;
         }
         let commands = getPathCommands(end);
         path = path + commands + path_end;
-        paths_.push(path);
+        paths_ = paths_ + path;
+        path = "<path>";
     }
-    console.log(paths_);
-    return paths_;
+    return paths_ + "</paths>";
   }
 
   function getPathCommands(command: string): string{
@@ -231,33 +390,73 @@ function setTransforms(globalTransforms: string[]):string{
     let horizontal = "<horizontal>";
     let horizontal_end = "</horizontal>";
     let elements = command.split('');
-    console.log("elements", elements)
     let isVertical = false;
     let isHorizontal = false;
-    for(let i =0; i< elements.length;i++){
-        if(!isNaN(Number(elements[i])) && i == 0){
-            move_to = move_to + elements[i] + move_to_end;
-        } else if(isNaN(Number(elements[i]))){
-            console.log("IIIIIII", elements[i])
-            if(isVertical){
-                move_to = move_to + vertical_end;
-                isVertical = false;
-            } else if(isHorizontal){
-                move_to = move_to + horizontal_end;
-                isHorizontal = false;
-            }
+   // console.log("command", command)
+    let len = elements.length;
 
-            if(i < elements.length){
-                if(elements[i] == 'V'){
+    let j = 0;
+    while(j <= len){
+        if(!isNaN(Number(elements[j])) && j == 0){
+            let val:any = elements[j]?.toString();
+            while(true){
+                if(!isNaN(Number(elements[++j]))){
+                    val = val + elements[j]?.toString();
+                } else{
+                    move_to = move_to + val;
+                    if(isVertical){
+                        move_to = move_to + vertical_end;
+                        isVertical = false;
+                    } else if(isHorizontal){
+                        move_to = move_to + horizontal_end;
+                        isHorizontal = false;
+                    }
+                    else{
+                        move_to = move_to  + move_to_end;
+                    }
+                    break;
+                }
+            }
+        } else if(isNaN(Number(elements[j]))){
+            //end the previous step which is the numeric value
+            if(j < elements.length){
+                if(elements[j] == 'V'){
                     isVertical = true;
                     move_to = move_to + vertical;
-                } else if(elements[i] == 'H'){
+                } else if(elements[j] == 'H'){
                     move_to = move_to + horizontal;
                     isHorizontal = true;
                 }
             }
-        } else if(!isNaN(Number(elements[i])) && i > 0){
-            move_to = move_to + elements[i];
+            j++;
+        } else if(!isNaN(Number(elements[j])) && j > 0){
+            let hasNeg = false;
+            if(elements[j-1] == '-'){
+                hasNeg = true;
+            }
+            let val:any = elements[j]?.toString();
+            while(true){
+                if(!isNaN(Number(elements[++j]))){
+                    val = val + elements[j]?.toString();
+                } else{
+                    if(hasNeg){
+                        val = "-" + val;
+                        hasNeg = false;
+                    }
+                    move_to = move_to + val;
+                    if(isVertical){
+                        move_to = move_to + vertical_end;
+                        isVertical = false;
+                    } else if(isHorizontal){
+                        move_to = move_to + horizontal_end;
+                        isHorizontal = false;
+                    } else{
+                        move_to = move_to  + move_to_end;
+                    }
+
+                    break;
+                }
+            }
         }
     }
     if(isVertical){
@@ -265,9 +464,6 @@ function setTransforms(globalTransforms: string[]):string{
     } else  if(isHorizontal){
         move_to= move_to + horizontal_end;
     }
-    
-   // console.log(move_to);
-
     return move_to;
   }
   //setTransforms([ 'translate(0, 360)', 'translate(40,10)' ]);
