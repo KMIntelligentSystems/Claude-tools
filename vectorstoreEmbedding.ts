@@ -1,8 +1,10 @@
 //import { OpenAI } from "openai";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { ChromaClient, CollectionType , Embedding, Documents, OpenAIEmbeddingFunction} from "chromadb";
+
 import { validateHeaderName } from "http";
-import { OpenAIEmbedding, Settings } from "llamaindex";
+import { OpenAIEmbedding, Settings, VectorStoreIndex, ChromaVectorStore, OpenAI, StorageContext, 
+  storageContextFromDefaults, serviceContextFromDefaults,  Document, TextNode } from "llamaindex";
 //import { Chroma, ChromaLibArgs } from "langchain/vectorstores/chroma";
 
 //const openai = new OpenAI({apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
@@ -30,7 +32,7 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
 })
 
   //Chroma
-  const client:ChromaClient = new ChromaClient();
+ /* const client:ChromaClient = new ChromaClient();
   // use directly
   
   async function getChromaEmbedding(){
@@ -63,7 +65,15 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
   }
 
   async function deleteCollection(){
-    await client.deleteCollection({ name: "svg",});
+    await client.deleteCollection({ name: "transforms"});
+    /await client.deleteCollection({ name: "svg"});
+    await client.deleteCollection({ name: "translate"});
+    await client.deleteCollection({ name: "tick_line_x"});
+    await client.deleteCollection({ name: "tick_line_y"});
+    await client.deleteCollection({ name: "tick_text_x"});
+    await client.deleteCollection({ name: "tick_text_y"});
+    await client.deleteCollection({ name: "paths"});
+    await client.deleteCollection({ name: "rects"});/
   }
 
   async function listCollections(name: string){
@@ -81,7 +91,7 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
     return inCollection;
   }
 
-  let i = 2;
+  let i = 0;
   export async function setSVGDbEmbedding(val: string){
     i++;
     console.log(i)
@@ -95,101 +105,107 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
       
   }
 //<transforms><x><y> translate(60,20) translate(0,340)
+    let transformId = 1;
     export async function setTransformsDbEmbedding(val: string, id: number){
+      console.log("TRAND", val)
       const collection = await client.getOrCreateCollection({name: "transforms", embeddingFunction: embeddingFunction});
-
+      transformId++;
       await collection.add({
           documents: [val],
-          ids: [id.toString()],
-          metadatas: [{ "transform": "global" }],
+          ids: [transformId.toString()],
+          metadatas: [{ "transform": "global_" + transformId }],
         });
         
     }
 
+    let translateId = 0;
     export async function setTranslateDbEmbedding(val: string, id: number){
+      translateId++
       const collection = await client.getOrCreateCollection({name: "translate", embeddingFunction: embeddingFunction});
-
+console.log(translateId)
       await collection.add({
           documents: [val],
-          ids: [id.toString()],
-          metadatas: [{ "translate": "tick" }],
+          ids: [translateId.toString()],
+          metadatas: [{ "translate": "translate" + translateId }],
         });
         
     }
 
+    let tickLineId = 0;
     export async function setTickLineDbEmbedding(val: string, id: number, type: string){
+      tickLineId++;
+      console.log("TICK", tickLineId)
       if(type == "x2"){
         const collection = await client.getOrCreateCollection({name: "tick_line_x", embeddingFunction: embeddingFunction});
         await collection.add({
             documents: [val],
-            ids: [id.toString()],
-            metadatas: [{ "tickline": "x2" }],
+            ids: [tickLineId.toString()],
+            metadatas: [{ "tickline": "x2" + tickLineId }],
           }); 
       } else if(type == "y2"){
         const collection = await client.getOrCreateCollection({name: "tick_line_y", embeddingFunction: embeddingFunction});
         await collection.add({
             documents: [val],
-            ids: [id.toString()],
-            metadatas: [{ "tickline": "y2" }],
+            ids: [tickLineId.toString()],
+            metadatas: [{ "tickline_y": "y2" + tickLineId }],
           }); 
       }
     
     }
 
+    let tickTextId = 0;
     export async function setTickTextDbEmbedding(val: string, id: number, type: string){
+      tickTextId++;
       if(type == "x2"){
         const collection = await client.getOrCreateCollection({name: "tick_text_x", embeddingFunction: embeddingFunction});
         await collection.add({
             documents: [val],
-            ids: [id.toString()],
-            metadatas: [{ "ticktext": "x2" }],
+            ids: [tickTextId.toString()],
+            metadatas: [{ "ticktext_x2": "x2" + tickTextId}],
           }); 
       } else if(type == "y2"){
         const collection = await client.getOrCreateCollection({name: "tick_text_y", embeddingFunction: embeddingFunction});
         await collection.add({
             documents: [val],
-            ids: [id.toString()],
-            metadatas: [{ "ticktext": "y2" }],
+            ids: [tickTextId.toString()],
+            metadatas: [{ "ticktext_y2": "y2" + tickTextId }],
           }); 
       }
     
     }
-
+    let pathId = 0;
     export async function setPathDbEmbedding(val: string, id: number){
+      console.log("PATH", val)
       const collection = await client.getOrCreateCollection({name: "paths", embeddingFunction: embeddingFunction});
-  
+      pathId++;
       await collection.add({
           documents: [val],
-          ids: [id.toString()],
-          metadatas: [{ "path": id }],
+          ids: [pathId.toString()],
+          metadatas: [{ "path": "path_" + pathId.toString() }]
         });
         
     }
     
+    let rectId = 0;
    export async function setRectDbEmbedding(val: string, id: number){
     const collection = await client.getOrCreateCollection({name: "rects", embeddingFunction: embeddingFunction});
-
+    rectId++;
     await collection.add({
         documents: [val],
-        ids: [id.toString()],
-        metadatas: [{ "rect": id }],
+        ids: [rectId.toString()],
+        metadatas: [{ "rect": "rect_" + rectId }],
        // embeddings: [[embedding]]
       });
       
   }
 
   export async function getSVGDbEmbedding(){
-    
     const collection = await client.getCollection({name: "svg", embeddingFunction: embeddingFunction});
-    const results = await collection.peek({
-      limit: 60
-    });
- console.log('results', results);
-   /* const results = await collection.query({
+    const results = await collection.query({
         queryTexts: ["what are the values"],
         nResults: 20,
       });
-    console.log("queryText", results.documents);*/
+    console.log("queryText", results.documents);
   }
   //"tick_line_x",
   export async function getTickLineXDbEmbedding(){
@@ -240,12 +256,12 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
         queryTexts: ["what are the values"],
         nResults: 20,
       });
-      /*const result = await collection.query({
+      /const result = await collection.query({
         queryEmbeddings: [embeddings],
         nResults: 10,
         where: {"metadata_field": "is_equal_to_this"},
     })
-    console.log("queryEmbed",result.documents);*/
+    console.log("queryEmbed",result.documents);/
   
     console.log("queryText", results.documents);
   }
@@ -255,12 +271,12 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
         queryTexts: ["what are the values"],
         nResults: 20,
       });
-      /*const result = await collection.query({
+      /const result = await collection.query({
         queryEmbeddings: [embeddings],
         nResults: 10,
         where: {"metadata_field": "is_equal_to_this"},
     })
-    console.log("queryEmbed",result.documents);*/
+    console.log("queryEmbed",result.documents);/
   
     console.log("queryText", results.documents);
   }
@@ -271,35 +287,36 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
         queryTexts: ["what are the values"],
         nResults: 20,
       });
-      /*const result = await collection.query({
+      /const result = await collection.query({
         queryEmbeddings: [embeddings],
         nResults: 10,
         where: {"metadata_field": "is_equal_to_this"},
     })
-    console.log("queryEmbed",result.documents);*/
+    console.log("queryEmbed",result.documents);/
 
     console.log("queryText", results.documents);
 
     
   }
-  
+ 
   export async function getRectDbEmbedding(){
     const collection = await client.getOrCreateCollection({name: "rects", embeddingFunction: embeddingFunction});
     const results = await collection.query({
-        queryTexts: ["what are the values"],
+        queryTexts: ["The XML is part of a representation of a bar chart. This part represents the bars or rectangles of data frequency. Interpret this representation in terms of a bar chart"],
         nResults: 20,
       });
-      /*const result = await collection.query({
+      /const result = await collection.query({
         queryEmbeddings: [embeddings],
         nResults: 10,
         where: {"metadata_field": "is_equal_to_this"},
     })
-    console.log("queryEmbed",result.documents);*/
-
+    console.log("queryEmbed",result.documents);/
+      
     console.log("queryText", results.documents);
+    return results.documents;
 
     
-  }
+  }*/
  
  /* const embedding = new OpenAIEmbeddings({apiKey:process.env["OPENAI_API_KEY"] as string })
   export async function setRectEmbedding( val: string, index: number){
@@ -339,10 +356,117 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
   Settings.embedModel = new OpenAIEmbedding({
     model: "text-embedding-ada-002",
   });
+  /**************************************
+   * llamaindex
+   * The VectorStoreIndex, an index that stores the nodes only according to their vector embeddings.
+   * A document is just a special text node with a docId.
+   * storageContextFromDefaults: docStore, indexStore, vectorStore, vectorStores, storeImages, persistDir
+   * Question: The XML is part of a representation of a bar chart. The provided data are the bars. How many bars are there?
+   * Answer: The original answer is correct. There are 20 bars in the provided data.
+   */
+  async function setIndexNodes(){
+    const node1 = new TextNode();
+    node1.text = "";
+    node1.id_ = ""
+    /*
+      
+node2 = TextNode(text="<text_chunk>", id_="<node_id>")
+nodes = [node1, node2]
+index = VectorStoreIndex(nodes)
+    */
+  }
 
+  /*********************************
+   * llamaindex
+   */
+  async function testLLama(/*data: any[], id: string*/){
+    Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
+   
+    //[ '<height>400</height><width>800</width>' ]
+     const docs_ = [
+      [
+        [
+          [
+          "translate><x>0</x><y>340</y></translate",
+"translate><x>0</x><y>310.73250573095754</y></translate",
+"translate><x>0</x><y>281.46501146191514</y></translate",
+"translate><x>0</x><y>252.19751719287274</y></translate",
+"translate><x>0</x><y>222.93002292383034</y></translate",
+"translate><x>0</x><y>193.6625286547879</y></translate",
+"translate><x>0</x><y>164.39503438574548</y></translate",
+"translate><x>0</x><y>135.12754011670302</y></translate",
+"translate><x>0</x><y>105.86004584766063</y></translate",
+"translate><x>0</x><y>76.5925515786182</y></translate",
+"translate><x>0</x><y>47.3250573095758</y></translate",
+"translate><x>0</x><y>18.05756304053336</y></translate",
+        ]
+        
+        ]
+      
+      ]
+    ]
+ 
+    let i = 0;
+    
+    let str = "";
   
-  //Not set yet
-   //hromadb.PersistentClient(path=storage_path)
+    docs_.forEach(d => {
+      str = str + `${d}` + ',';
+    })
+    const document = new Document({ text: str, id_: "translate_v"});
+
+    const storageContext = await storageContextFromDefaults({
+      persistDir: "./storage/translate_v"
+    });
+
+   
+    const index = await VectorStoreIndex.fromDocuments([document], {
+      storageContext,
+    });
+
+   /*  const chromaVS = new ChromaVectorStore({ collectionName:"paths"});
+    const index = await VectorStoreIndex.fromVectorStore(chromaVS);
+    const r = index.asRetriever();
+    const res = r.retrieve("retrieve all data");
+    console.log(res.toString());*/
+    const queryEngine = index.asQueryEngine();
+    const response = await queryEngine.query({
+      query: "The XML is part of a svg representation of a bar chart. The data is the x2 value of a svg line representing tick lines of the size provided?"  });
+    // Output response
+    console.log(response.toString());
+  }
+
+  async function testGetfromLlamaindex(){
+    Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
+    const secondStorageContext = await storageContextFromDefaults({
+      persistDir: "./storage/line_text_x",
+    });
+    const loadedIndex = await VectorStoreIndex.init({
+      storageContext: secondStorageContext,
+    });
+    const loadedQueryEngine = loadedIndex.asQueryEngine();
+    const loadedResponse = await loadedQueryEngine.query({
+      query: "The XML is part of a representation of a bar chart. The provided data is a y-axis value. What are the values?",
+    });
+    console.log(loadedResponse.toString());
+  }
+ 
+  async function peersistChroma(){
+    //https://docs.trychroma.com/deployment/docker
+    //docker run --env-file ./.chroma_env -v <path_to_authz.yaml>:/chroma/<authz.yaml> -p 8000:8000 chromadb/chroma
+    //docker run -p 8000:8000 chromadb/chroma
+
+    const chromaClient = new ChromaClient({
+        path: "http://localhost:8000",
+        auth: {
+            provider: "basic",
+          //  credentials: process.env["CHROMA_CLIENT_AUTH_CREDENTIALS"]
+        }
+})
+
+chromaClient.heartbeat()
+
+  }
 
    //Langchain version
     async function main(){
@@ -354,26 +478,29 @@ const embeddingResponse: OpenAI.Embeddings.CreateEmbeddingResponse =
         //Chroma
         //getChromaEmbedding();
 //getEmbedding();
-    //  await setRectDbEmbedding(input, 0);
-     // await getRectDbEmbedding();
-     //await setSVGDbEmbedding("<height> 400</height>")
-       await getSVGDbEmbedding();
-      // await getPathDbEmbedding();
-     // await getTickTextXDbEmbedding();
-     //await getTickTextYDbEmbedding();
-    // await getTickLineXDbEmbedding();
-    //await getTickLineYDbEmbedding();
-    //await getTranslateDbEmbedding();
-   // await getTransformDbEmbedding();
-      //  deleteCollection();
+   
+    //   await getSVGDbEmbedding();
+  /*     
+      await getTickTextXDbEmbedding();
+     await getTickTextYDbEmbedding();
+     await getTickLineXDbEmbedding();
+    await getTickLineYDbEmbedding();
+    
+     await getTransformDbEmbedding();
+     //   deleteCollection();
         //listCollections("svg");
+        await getPathDbEmbedding();*/
+      //  const res: any[] = await getRectDbEmbedding();
+        testLLama();
+       // testGetfromLlamaindex();
+       //await getTranslateDbEmbedding();
     }
 /*const collection = await client.getOrCreateCollection({
       name: "SVGCollection",
     });*/
    
 
- main();
-  //export{}
+  //main();
+  export{}
   
   
