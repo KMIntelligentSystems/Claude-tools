@@ -78,12 +78,9 @@ function main(){
     frame = frame + ticks;
     let rects_ = setRects(rects);
     frame = frame + rects_ + end;
-    console.log(frame);
 }
 
-export async function setSVG(height: string, width: string){
-    console.log("hhh",height)
-    console.log("www",width)
+export  function setSVG(height: string, width: string){
     let res: string = "";
     let h = "<height>";
     let h_end = "</height>";
@@ -91,8 +88,8 @@ export async function setSVG(height: string, width: string){
     let w_end = "</width>";
     
     res = h + height + h_end + w + width + w_end;
-   
-    return res;
+ 
+    return res as string;
 }
 
 export async function setTranslate(trans: string){
@@ -102,7 +99,6 @@ export async function setTranslate(trans: string){
     let x = "<x>" + vals[0] + "</x>";
     let y = "<y>" + vals[1] + "</y>";
     let res = "<translate>" + x + y + "</translate>";
-
     return res;
 }
 
@@ -127,43 +123,43 @@ export async function setTickText(text: string, pos: string, type: string){
     let x2_end = "</line_len_x>"
     let y2 = "<line_len_y>";
     let y2_end = "</line_len_y>"
-    //<line_len_y>6</line_len_y><line_text_y>5000</line_text_y>
+    //y2 is for the line meaning x2 is 0 as is x1 and y1
     if(type == "y2"){
-        y2 = y2 + pos + y2_end;
-        line_text_y =line_text_y + text + line_text_y_end;
-        return line_text_y;
-    } else{
         x2 = x2 + pos + x2_end;
         line_text_x =line_text_x + text + line_text_x_end;
         return line_text_x;
+    } else{
+        y2 = y2 + pos + y2_end;
+        line_text_y =line_text_y + text + line_text_y_end;
+        return line_text_y;
     }
 }
 
 
 export async function setPaths(p: string){
     //"M0,6V0H390V6"
-    let paths_: string = "<paths>";
+
     let path = "<path>";
     let path_end = "</path>";
     let move_from = "<move_from>";
     let move_from_end = "</move_from>";
     
     let splitArray = p.split(",");
-      
+    
     let start = splitArray[0];
     let end: string = splitArray[1] as string;
-    start = start?.substring(1);
+  
     path = path + move_from + start + move_from_end;
         
     let commands = getPathCommands(end);
+   
     path = path + commands + path_end;
-
     return path;
   }
 
   export async function setTransforms(trans1: string){
-    let transform: string = "<transform>";
-    let transform_end: string = "</transform>";
+    let transform: string = "<translate>";
+    let transform_end: string = "</translate>";
     let x: string = "<x>";
     let x_end: string = "</x>";
     let y: string = "<y>";
@@ -180,7 +176,7 @@ export async function setPaths(p: string){
   }
 
 export async function setRect(x_: number, y_: number, h: number, w: number){
-    //let res: string = "<rects>";
+   
     let rect = "<rect>";
     let rect_end = "</rect>";
     let x = "<x>";  
@@ -195,6 +191,20 @@ export async function setRect(x_: number, y_: number, h: number, w: number){
     let res = rect + x + x_ + x_end + y + y_ + y_end + width + w + width_end + height + h + height_end + rect_end;
     return res;
 }
+
+export async function setRectFill(fill: string){
+  let rect_color = "<rect_color>";
+  let rect_color_end = "</rect_color>";
+
+  return rect_color + fill + rect_color_end;
+}
+
+export async function setLegendText(text:  string){
+    let legend = "<legend_txt>";
+    let legend_end = "</legend_txt>";
+
+    return legend + text + legend_end;
+  }
 
 function setSVG_(svg: string[]): string{
     let res: string = "";
@@ -260,7 +270,6 @@ export async function setRect_(x_: number, y_: number, h: number, w: number){
     let height_end = "</height>"
 
     let res = rect + x + x_ + x_end + y + y_ + y_end + width + w + width_end + height + h + height_end + rect_end;
-    console.log(res);
 }
 
 
@@ -376,11 +385,49 @@ function setTransforms_(globalTransforms: string[]):string{
         }
         let commands = getPathCommands(end);
         path = path + commands + path_end;
+      
         paths_ = paths_ + path;
         path = "<path>";
     }
     return paths_ + "</paths>";
   }
+
+  export async function setLinePaths(p: string){
+    let path = "<path>";
+    let path_end = "</path>";
+    let move_from = "<move_from>";
+    let move_from_end = "</move_from>";
+    
+    let splitArray:string[] = p.split(",");
+    
+    let start = splitArray[0]?.substring(1);
+    for(let i = 1;i < splitArray.length;i++){
+        let cmd = splitArray[i] as string;
+        let commands = getLinePathCommands(cmd);
+        path = path + move_from + start + move_from_end + commands;
+    }
+    
+    return path + path_end;
+  }
+
+  function getLinePathCommands(command: string): string{
+    //65.399L355
+    let move_to = "<move_to>";
+    let move_to_end = "</move_to>";
+    let line_to = "<line_to>";
+    let lineTo_to_end = "</line_to>";
+    if(command.includes("L")){
+        let len = command.length;
+        let idx = command.indexOf("L");
+        let m = command.substring(0, idx);
+        let l = command.substring(idx+1, len);
+        move_to = move_to  + m + move_to_end + line_to + l + lineTo_to_end;
+    } else{
+        move_to = move_to  + command + move_to_end;
+    }
+     return move_to;
+  }
+
 
   function getPathCommands(command: string): string{
     let move_to = "<move_to>";
@@ -392,7 +439,6 @@ function setTransforms_(globalTransforms: string[]):string{
     let elements = command.split('');
     let isVertical = false;
     let isHorizontal = false;
-   // console.log("command", command)
     let len = elements.length;
 
     let j = 0;
@@ -459,6 +505,7 @@ function setTransforms_(globalTransforms: string[]):string{
             }
         }
     }
+
     if(isVertical){
         move_to= move_to + vertical_end;
     } else  if(isHorizontal){
