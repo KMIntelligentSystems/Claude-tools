@@ -1,20 +1,30 @@
-import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent } from "llamaindex";
+import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent, DEFAULT_COLLECTION } from "llamaindex";
 import {
   SimpleVectorStore,
+  ChromaVectorStore,
   TogetherEmbedding,
   TogetherLLM,
   VectorStoreIndex,
+  storageContextFromDefaults,
   SimpleDirectoryReader,
   PromptTemplate,
   getResponseSynthesizer,
   QueryEngineTool,
   ToolMetadata,
-  QueryEngineToolParams
+  QueryEngineToolParams,
+  OpenAI,
+  VectorIndexRetriever,
+  RetrieverQueryEngine,
 } from "llamaindex";
+
 import { DynamicTool, DynamicStructuredTool } from "@langchain/core/tools";
 import { Document } from "llamaindex";
 import { requirement } from './langgraph'
 import { PapaCSVReader } from "llamaindex/readers/CSVReader";
+//import { ChromaClient, OpenAIEmbeddingFunction} from "chromadb";
+
+//import { OpenAI } from "openai";
+
 
 Settings.callbackManager.on("llm-tool-call", (event:any) => {
   console.log("llm-tool-call", event.detail.toolCall);
@@ -54,16 +64,25 @@ const agent = new AnthropicAgent({
   ],
 });
 
-async function main() {
-  //await getCSVData()
-  /*const { response } = await agent.chat({
-    message:
-      "What is the weather in New York? What's the history of New York from Wikipedia in 3 sentences?",
+//export async function getSVG_XMLData() went to tools
+/*export async function getSVG_XMLData_() {
+  const collectionName = "svg_xml_elements";
+  const client:ChromaClient = new ChromaClient();
+  const collection:any = await client.getOrCreateCollection({
+        name: collectionName,
   });
-
-  console.log(response);*/
-}
-
+  const res = await collection.get({
+    ids: ["svg_xml_elements"],
+  });
+ // console.log(res)
+  const chromaVS = new ChromaVectorStore({ collectionName });
+  const data = chromaVS.getCollection();
+  data.then(v => {
+    //console.log(v.get());
+  })
+  
+ 
+}*/
 export async function getCSVData(input: String) {
   console.log("START...", input)
   const reader = new PapaCSVReader();
@@ -106,4 +125,53 @@ Given the CSV file, use the information provided in {query} to create a command 
   return String(response?.message.content);
 }
 
-//void main();
+/*const embeddingFunction = new OpenAIEmbeddingFunction({
+  openai_api_key: process.env["OPENAI_API_KEY"] as string,
+  openai_model: "text-embedding-3-small"
+})
+async function testLLama(){
+  Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
+//  const client:ChromaClient = new ChromaClient();
+ // const collection = await client.getOrCreateCollection({name: "svg", embeddingFunction: embeddingFunction});
+   
+  const chromaVS = new ChromaVectorStore({ collectionName:"rects"});
+  //const client = chromaVS.client();
+  
+  const vectorStoreIndex = await VectorStoreIndex.fromVectorStore(chromaVS);
+
+  const retriever = (await VectorStoreIndex.fromVectorStore(chromaVS)).asRetriever(
+    {
+      similarityTopK:1,
+    }
+)
+    const nodes = await retriever.retrieve("Provide all items");
+    console.log(nodes)
+ /   const queryEngine = vectorStoreIndex.asQueryEngine({
+   
+    });
+    const response = await queryEngine.query({ query: "List all items" });/
+ / const retriever = new VectorIndexRetriever({
+    index: vectorStoreIndex,
+    similarityTopK: 500,
+  });
+
+  const responseSynthesizer = getResponseSynthesizer("tree_summarize");
+  const queryEngine = new RetrieverQueryEngine(retriever, responseSynthesizer);
+  const response = await queryEngine.query({
+    query: "How many results do you have?",
+  });/
+
+ // console.log(response.toString());
+
+ / const index = await VectorStoreIndex.fromVectorStore(chromaVS);
+  const queryEngine = index.asQueryEngine({
+    similarityTopK: 3,
+  });
+  const response = await queryEngine.query({ query:"Provide all values" });
+  console.log(response.toString());/
+}*/
+
+async function main() {
+// await testLLama();
+}
+main();
