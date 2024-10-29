@@ -1,29 +1,10 @@
-import 'chromedriver';
-import { promises } from 'fs';
+import 'chromedriver';;
 import { Options} from 'selenium-webdriver';
 import { Builder,/*Browser,*/ ThenableWebDriver, WebElement, By, WebElementPromise} from 'selenium-webdriver';
-import { fs } from 'memfs';
-import { readFileSync, writeFileSync } from 'fs';
-import {
-  SimpleVectorStore,
-  TogetherEmbedding,
-  TogetherLLM,
-  VectorStoreIndex,
-  SimpleDirectoryReader,
-  PromptTemplate,
-  getResponseSynthesizer,
-  QueryEngineTool,
-  ToolMetadata,
-  QueryEngineToolParams,
-  SimpleKVStore,
-  SimpleIndexStore
-} from "llamaindex";
-import { DEFAULT_NAMESPACE } from "@llamaindex/core/global";
+import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
-import { ChromaClient, Embedding } from "chromadb"; 
-//import {setRectDbEmbedding, getRectDbEmbedding} from './vectorstoreEmbedding'
-import {setSVGRect, setSVGData, setTransformsData, setTranslateData, setTickLineData, setTickTextData, setPathData} from './tools'
-import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, setPaths, setRect} from './test'
+import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, 
+  setPaths, setRect, setLinePaths, setRectFill, setLegendText} from './test'
 
 /*
 Tool to add web elements to vector store using chromadb
@@ -45,91 +26,6 @@ public  async findElement(el: string): Promise<WebElement[]> where el eg is  con
 
 //import { Page, NewablePage, WebComponent, WaitCondition } from './';
 export type WaitCondition = (browser: Browser) => Promise<boolean>;
-
-
-
- class rect {
-    x: number = 0;
-    y: number = 0;
-    height: number = 0;
-    width: number = 0;
-    toString(): string{
-        const str = "x: " + this.x.toString() + "," + "y: " + this.y.toString() + "," + "width: " + this.width.toString() + "," + "height: " + this.height.toString();
-        return str;
-    }
-}
-
-class rects{
-   values: rect[] = []; 
-}
-
-class path{
-   moveFrom: string = "";
-   moveTo: string = "";
-   val: string = "";
-}
-
-class paths{
-    values: path[] = [];
-}
-
-class tickLine{
-    x2: number = 0;
-    y2: number = 0;
-    isX2: boolean = false;
-    toString(): string{
-      let str = "";
-      if(this.isX2){
-          str = "x2: " + this.x2.toString();
-      } else {
-        str = "y2: " + this.y2.toString();
-      }
-      return str;
-    }
-}
-class tickText{
-    x2_text: string = "";
-    y2_text: string = "";
-    x2: string = "";
-    y2: string = "";
-    isX2: boolean = false;
-    toString(): string{
-      let str = "";
-      if(this.isX2){
-          str = "x2: " + this.x2 + ",text:" + this.x2_text;
-      } else {
-        str = "y2: " + this.y2 + ",text:" + this.y2_text;
-      }
-      return str;
-    }
-}
-class tick{
-    line: tickLine = new tickLine();
-    text: tickText = new tickText();
-}
-
-class ticks{
-    values: tick[] = [];
-}
-
-class svg{
-  height: string = "";
-  width: string = "";
-  toString(): string{
-    const str = "height: " + this.height + ",width: " + this.width;
-    return str;
-  }
-}
-
-export class SVGElements{
-    public error: string = "";
-    rects: rects = new rects();
-    paths: paths = new paths();
-    ticks: ticks = new ticks();
- }
-
- 
- 
 export class Browser {
   private driver: ThenableWebDriver;
   public constructor() {
@@ -149,210 +45,330 @@ export class Browser {
     await this.driver.navigate().to(url);
   }
 
-  
-  public els: SVGElements = new SVGElements();
-
-  kvstore: SimpleKVStore = new SimpleKVStore();
-  private nodeCollection: string = DEFAULT_NAMESPACE;
-
-  public client:ChromaClient = new ChromaClient();
-  
-  public async setChromadb(): Promise<any>{
-  
-    const collection = await this.client.getOrCreateCollection({
-      name: "SVGCollection",
-    });
-    return collection;
-  }
-  
-  public  async findElement(el: string): Promise<WebElement[]>{
-    const promise = await this.driver.findElements(By.xpath(el));
-    
-    return promise;
-  }
-
-  public async findElements() {
-    let tempText: tickText[] = [];
-    let tempLine: tickLine[] = [];
-    let rects_ = new rects();
-    let paths_ = new paths();
-    let ticks_ = new ticks();
-    try{
-      
-        const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));
+  public async getSVGElement(){
+    const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));
+    let comment = "<!-- The dimensions of the SVG frame  --> ";
             //provides svg h and w
             first.then(value =>{
-                let i = 0;
                 for (var v of value) {
-                  v.getAttribute("height").then(h => {
-                  
+                 v.getAttribute("height").then(h => {
                     v.getAttribute("width").then(w => {
-                      setSVG(h,w).then(val => {
-                        setSVGData(val);
-                      })
-                     
+                      let val = setSVG(h,w);
+                      this.log(comment + val, "svg");
                     })
                   })
                 }
             })
-        /*    const second =  this.driver.findElements(By.xpath("//*[name()='svg']"));
-            second.then(value =>{
-              let i = 0;
-              for (var v of value) {
-                v.getAttribute("width").then(w => {
-                  setSVGData(w,i, "width");
-                })
-              }
-          })*/
+  }
 
-       /* const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
+  public async getTransforms(){
+        //Vector = "transform"
+        const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
+        let commentAdded = false;
+        let comment = "<!-- Translates the svg frame within the given height and width  --> ";
           globalTransform.then(value =>{
-            let i = 0;
             for (var v of value) {
               v.getAttribute("transform").then(v1 => {
                
                 if(v1){
                   setTransforms(v1).then(t => {
-                    setTransformsData(v1, i);
+                    if(!commentAdded){
+                      this.log(comment + t, "svg");
+                      commentAdded = true;
+                    } else{
+                      this.log(t, "svg");
+                    } 
                   })
-                  //provides for <transforms><x><y> translate(60,20) translate(0,340)
-                  //setTransforms([ 'translate(40,10)', 'translate(0, 360)' ]);
-                  //this.setGlobalTranslateData(i, v1)
-                  i++;
                 }
               })
             }
         })
-      const tick  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
-      tick.then(value =>{
-        let i = 0;
-        for (var v of value) {
-          v.getAttribute("transform").then(v1 => {
-            //Provides translate(0,164.39503438574548) for all ticks
-           // this.setTransformData(i, v1);
-           setTranslate(v1).then(t => {
-            setTranslateData(v1, i);
-           })
-            i++;
-          })
-        }
-    })
+  }
 
-    const promiseLine = this.findElement("//*[name()='line']");
-    promiseLine.then(value =>{
+  public async getTickXY(){
+    const tick  = this.driver.findElements(By.xpath("//*[name()='g' and @class='tick']"));
+    const commentForY = "<!-- The y-axis data is translated up the axis with the translate increments -->";
+    const commentForX = "<!-- The x-axis data is translated along the axis with the translate increments -->"
+    let commentX = false;
+    let commentY = false;
+    tick.then(value =>{
+      for (var v of value) {
+        v.getAttribute("transform").then(v1 => {
+         setTranslate(v1).then(t => {
+          //The y is 0 thus straight line
+          if(t.includes("<y>0</y>")){
+            if(!commentX){
+              this.log(commentForX + t, "tick_x")
+              commentX = true;
+            }else{
+              this.log(t, "tick_x")
+            }
+          } else {
+            //Just vertical line
+            if(!commentY){
+              this.log(commentForY + t, "tick_y")
+              commentY = true;
+            }else{
+              this.log(t, "tick_y")
+            }
+          }
+         })
+        })
+      }
+     })
+  }
+
+public async getTickLine(){
+  const promiseLine = this.driver.findElements(By.xpath("//*[name()='line']"));
+  let commentY = "<!-- The tick lengths up the y-axis going from right to left --> ";
+  let commentForX = false;
+  let commentX = "<!-- The tick lengths descending from the x-axis --> ";
+  let commentForY = false;
+  promiseLine.then(value =>{
+    for (var v of value) {
+        v.getAttribute("y2").then(val =>{
+            if(val){
+                setTickLines(val, "y2").then(l => {
+                  let val: string= "line_len_x>" + l + "</line_len_x>";
+                  if(!commentForX){
+                    this.log(commentX + val, "tick_x");
+                    commentForX = true;
+                  }else {
+                    this.log(val, "tick_x");
+                  }
+                });                  
+               } 
+        })
+        v.getAttribute("x2").then(val =>{
+            if(val){
+                setTickLines(val, "x2").then(l => {
+                  let val: string= "line_len_y>" + l + "</line_len_y>";
+                  if(!commentForY){
+                    this.log(commentY + val, "tick_y");
+                    commentForY = true;
+                  }else {
+                    this.log(val, "tick_y");
+                  }
+                }); 
+            } 
+        })
+      } 
+    })
+  }
+
+  public async getTickText(){
+    const promiseLineTxt = this.driver.findElements(By.xpath("//*[name()='text' and @fill='currentColor']"));
+    let commentX = "<!-- The tick text values of the x-axis --> ";
+    let commentForX = false;
+    let commentY = "<!-- The tick text values of the y-axis --> ";
+    let commentForY = false;
+    promiseLineTxt.then(value =>{
       let i = 0;
       let j = 0;
       for (var v of value) {
-          const ln = new tickLine();
-          v.getAttribute("y2").then(val =>{
-              if(val){
-                  ln.y2 = +val;
-                  ln.isX2 = false;
-                  setTickLines(val, "y2").then(l => {
-                    setTickLineData(val,i,"y2")
-                  });
-                  i++;
-                //  console.log("ln y2", ln.y2)
-                 // this.setLineData(i++,ln.toString(), ln.isX2);                    
-                 } 
+          let v_ = "";
+          v.getText().then(val =>{
+            v_ = val; 
           })
-          v.getAttribute("x2").then(val =>{
+          v.getAttribute("x").then(val =>{
               if(val){
-                  ln.x2 = +val;
-                  ln.isX2 = true;
-                  setTickLines(val, "x2").then(l => {
-                    setTickLineData(val,j,"x2")
+                  setTickText(v_, val,"x2").then(l => {
+                    if(!commentForY){
+                      this.log(commentY + l, "tick_y");
+                      commentForY = true;
+                    } else {
+                      this.log(l, "tick_y");
+                    }
                   });
-                  j++;
-                //  console.log("ln x2", ln.x2)
-                 // this.setLineData(j++,ln.toString(), ln.isX2);
+              }   
+          })
+          v.getAttribute("y").then(val =>{
+              if(val){
+                  setTickText(v_, val,"y2").then(l => {
+                    if(!commentForX){
+                      this.log(commentX + l, "tick_x");
+                      commentForX = true;
+                    } else {
+                      this.log(l, "tick_x");
+                    }
+                 });
               } 
-             
           })
-          
-      } 
-  })
-     
-  const promiseLineTxt = this.findElement(("//*[name()='text']"));
-  promiseLineTxt.then(value =>{
-    let i = 0;
-    let j = 0;
-    for (var v of value) {
-        let v_ = "";
-        v.getText().then(val =>{
-          v_ = val; 
-        })
-        const txt = new tickText();
-        v.getAttribute("x").then(val =>{
-            if(val){
-                txt.x2_text = v_;
-                txt.x2 = val;
-                txt.isX2 = true;
-                setTickText(v_, val,"x2").then(l => {
-                   setTickTextData(l, i, "x2");
-                });
-                i++;
-               / console.log(i++);
-                console.log("textx2", txt.x2);
-                console.log("txt.x2_text", txt.x2_text)
-                console.log("txt.toString()1", txt.toString())/
-                //this.setLineTextData(i++, txt.toString(), txt.isX2);
-            } 
-            
-        })
-        v.getAttribute("y").then(val =>{
-            if(val){
-                txt.y2_text = v_;
-                txt.y2 = val;
-                txt.isX2 = false;
-                setTickText(v_, val,"y2").then(l => {
-                  setTickTextData(l, j, "y2");
-               });
-               j++;
-            } 
+        }
+    })
+  }
 
-        })
-    }
-})
-          
-           
-          const promiseRect = this.findElement("//*[name()='rect']");
-            let i: number = 0;
-            promiseRect.then(value => {
-                for (var v of value) {
-                    v.getRect().then(val =>{
-                    setRect(val.x, val.y, val.height, val.width).then(r => {
-                      this.setRectData( i, r);
-                    })
-                    i++;
-                })
-            } 
-            });
-
-            const promisePath = this.findElement("//*[name()='path']");
-            promisePath.then(value =>{
-              let i = 0;
-              for (var v of value) {
-                  let p = new path();
-                  v.getAttribute("d").then(val =>{
-                      p.val = val;
-                      i++;
-                      setPaths(val).then(p => {
-                        setPathData(p, i);
-                      })
-                     // this.setPathData(i, p);
-                  })
-                 
+  public async getRects(){
+    const promiseRect = this.driver.findElements(By.xpath("//*[name()='rect']"));
+    let comment = "<!-- The rects defining the sizes of rectangles in a bar chart or if small as legend --> ";
+    let commentForRect = false;
+    promiseRect.then(value => {
+        for (var v of value) {
+            v.getRect().then(val =>{
+            setRect(val.x, val.y, val.height, val.width).then(r => {
+              if(!commentForRect){
+                this.log(comment + r, "rects");
+                commentForRect = true;
+              } else{
+                this.log(r, "rects");
               }
-          })*/
-         
+            })
+        })
+        v.getAttribute("fill").then(val => {
+          setRectFill(val).then(f => {
+            this.log(f, "rects");
+          });
+        })
+      } 
+    });
+  }
+
+  public async getLegendText(){
+    let hasX = false;
+    let hasY = false;
+    const promiseLineTxt = this.driver.findElements(By.xpath("//*[name()='g']//*[name()='g']//*[name()='text']"));
+    promiseLineTxt.then(value =>{
+      for (var v of value) {
+        v.getText().then(val =>{
+          
+          setLegendText(val).then(t => {
+            const regexp = /\d+/;
+            if(!t.match(regexp)){
+              this.log(t, "rects");
+            }
+          })
+        })
+      }
+    })
+  }
+
+  public async getPaths(){
+    const promisePath = this.driver.findElements(By.xpath("//*[name()='path'and @class='domain']"));
+    let comment = "<!-- The paths define the x-y axes --> ";
+    let commentForPath = false;
+    promisePath.then(value =>{
+      for (var v of value) {
+          v.getAttribute("d").then(val =>{
+              setPaths(val).then(p => {
+                if(!commentForPath){
+                  this.log(comment + p, "paths");
+                  commentForPath = true;               
+                }else{
+                  this.log(p, "paths");
+                }
+              })
+          })
+        }
+    })
+  }
+
+  public async getLines(){
+    const promisePath = this.driver.findElements(By.xpath("//*[name()='path'and @class='line']"));
+    let comment = "<!-- The paths define the line chart --> ";
+    let commentForPath = false;
+    promisePath.then(value =>{
+      for (var v of value) {
+          v.getAttribute("d").then(val =>{
+              setLinePaths(val).then(p => {
+                if(!commentForPath){
+                  this.log(comment + p, "line_paths");
+                  commentForPath = true;               
+                }else{
+                  this.log(p, "line_paths");
+                }
+              })
+          })
+        }
+    })
+  }
+
+  public async findElements() {
+    try{
+         await this.delFiles();
+         await this.getSVGElement();
+         await this.getTickXY();
+         await this.getTickLine();
+         await this.getTickText();
+         await this.getTransforms();
+         await this.getRects();
+         await this.getPaths();
+         await this.getLines();
+         await this.getLegendText();
     } catch(Exception){
         const  svg_elements = "<svg>No svg elements were found, indicating a syntax error<svg>";
        
     }
+      
   }
 
-  public async setSVGData_(counter: number, value: string){
+  async delFiles(){
+    try {
+      const path = 'C:/salesforce/repos/Claude tools/';
+      const svgFile = "svg.txt";
+      const xfile = "tickX.txt";
+      const yfile = "tickY.txt";
+      const rectFile = "rect.txt";
+      const pathFile = "path.txt";
+      const linePathFile = "linePath.txt";
+      if(existsSync(path+svgFile)){
+        unlinkSync(path+svgFile);
+      }
+      if(existsSync(path+xfile)){
+        unlinkSync(path+xfile);
+      }
+      if(existsSync(path+yfile)){
+        unlinkSync(path+yfile);
+      }
+      if(existsSync(path+rectFile)){
+        unlinkSync(path+rectFile);
+      }
+      if(existsSync(path+pathFile)){
+        unlinkSync(path+pathFile);
+      }
+      if(existsSync(path+linePathFile)){
+        unlinkSync(path+linePathFile);
+      }
+  } catch (err) {
+      console.error('Error deleting the file:', err);
+  }
+  }
+
+  public log(val: string, type: string){ 
+    const path = 'C:/salesforce/repos/Claude tools/';
+    const svgFile = "svg.txt";
+    const xfile = "tickX.txt";
+    const yfile = "tickY.txt";
+    const rectFile = "rect.txt";
+    const pathFile = "path.txt";
+    const linePathFile = "linePath.txt";
+    if(type == "svg"){
+      writeFileSync(path+svgFile, val+"\n", {
+        flag: 'a',
+      });
+    } else if (type == 'tick_x'){
+      writeFileSync(path+xfile, val+"\n", {
+        flag: 'a',
+      });
+    } else if (type == 'tick_y'){
+      writeFileSync(path+yfile, val+"\n", {
+        flag: 'a',
+      });
+    } else if (type == 'rects'){
+      writeFileSync(path+rectFile, val+"\n", {
+        flag: 'a',
+      });
+    } else if (type == 'paths'){
+      writeFileSync(path+pathFile, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'line_paths'){
+      writeFileSync(path+linePathFile, val+"\n", {
+        flag: 'a',
+      });
+    }
+  }
+
+ /* public async setSVGData_(counter: number, value: string){
     
     const collection = await this.client.getOrCreateCollection({
       name: "svg",
@@ -467,34 +483,9 @@ export class Browser {
       ],
       ids: [trans + counter],
     });
-  }
+  }*/
 
-  public async getChromaData(){
-    
-    const collection = await this.client.getOrCreateCollection({
-      name: "SVGCollection",
-    });
-    const results = await (await collection).query({
-      queryTexts: "This is a query for selecting rects", // Chroma will embed this for you
-      nResults: 1, // how many results to return
-    });
-
-   // console.log("results", results);
-  }
-
-  public log(val: string){ 
-    const path = 'C:/salesforce/repos/file.txt';
-    const filename = "file.txt";
-    writeFileSync(path, val+"\n", {
-      flag: 'a',
-    });
-    //const f = new fs.WriteStream(path);
-    
-    //const file = f.createWriteStream(path);
-   // f.write(val);
-    
-    //f.write(this.els);
-  }
+  
 
   public async clearCookies(url?: string): Promise<void> {
     if (url) {
@@ -532,3 +523,5 @@ export class Browser {
     await this.driver.quit();
   }
 }
+
+ 
