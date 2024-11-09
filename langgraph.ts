@@ -14,18 +14,19 @@ import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
 import { Calculator } from '@langchain/community/tools/calculator';
 import { JsonOutputParser, StringOutputParser } from "@langchain/core/output_parsers";
 import { Browser } from "./browser";
-import { ChromaClient, CollectionType } from "chromadb";
+import { ChromaClient,  OpenAIEmbeddingFunction } from "chromadb";
 import {  saveHtml, askSVGToolAgent,saveAnalysisTool} from "./tools";
 import { ChatPromptValue } from "@langchain/core/prompt_values";
 import type { ChatGeneration} from "@langchain/core/outputs";
 import { readFileSync, writeFileSync} from 'fs';
-import { getToolCallingAgent, getDocumentNodes } from './llamaindexanalyzertool'
+import { getToolCallingAgent, getDocumentNodes, loadCSVFile } from './llamaindexanalyzertool'
 import {Document, VectorStoreIndex,  OpenAI,Settings,} from "llamaindex";
-
+import {testGetfromLlamaindex} from './vectorstoreEmbedding'
+import { ChromaAgent } from "./chromaagent";
 
 import "dotenv/config";
+import { ChatOllama } from "@langchain/ollama";
 
-//import { ChatOllama } from "@langchain.jslangchain-community/chat_models/ollama";
 
 
 //from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate, PromptTemplate, SystemMessagePromptTemplate
@@ -37,49 +38,8 @@ import "dotenv/config";
 
 
 
-const ANTHROPIC_API_KEY="";
+const ANTHROPIC_API_KEY=""
 
-const coderTemplate = `<|begin_of_text|><|start_header_id|>coder<|end_header_id|>Your role is Coder. Your task is to render Scalar Vector Graphics using the JavaScript framework: d3 js and produce valid html to execute in a browser.\n
-    As a coder you will need to understand the requirements for the code. The requirements are in {requirement}. Look at it closely.\n
-    The input data used to meet the requirements will be provided to you in {data}. This data is in CSV format. Do not make up data or imagine a csv file from an external data source. Always use the CSV string provided in {data}.\n
-    You will receive a report about how well your code meets the requirements. The report will indicate improvements for the code. You can find the recommendation for improvement in {recommendation}.\n
-    If improvements are recommended, look at the version of your code for which the recommendation was made. Then make the recommended improvements to that code. Your previous version of the code is in {html}.\n\n
-    Return your completed code with the single key:'html'. Remember the code must start with '<!DOCTYPE html><html>' and end with '</html>'. 
-    Ensure that the code can be executed and does not have line returns ('\n') or other string delimiters ('\'). Do not add explanation or preamble.
-  `
-const coderPrompt = new PromptTemplate({
-      inputVariables: [ "data", "requirement", "recommendation", "html"],
-      template: coderTemplate,
-});
-
-const coder = new ChatAnthropic({
-  model: "claude-3-opus-20240229",
-  temperature: 0,
-  apiKey: ANTHROPIC_API_KEY
-});//.bindTools([csvDataTool]);
-
-
-
-//const chainA = coderPrompt.pipe({ llm: coder });
-/*const modelOpenAI = new OpenAI({ temperature: 0 });
-const promptOpenAI = PromptTemplate.fromTemplate(
-  "What is a good name for a company that makes {product}?"
-);
-const chainA = promptOpenAI.pipe({ llm: coder});
-
-const responseA = await coderPrompt.format({data: "", requirement: "", recommendation: "", html: "" });
-const response = await coder.invoke(responseA);
-
-
-
-
-const prompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    "You are a helpful assistant who always uses tools to ensure you provide accurate, up to date information.",
-  ],
-  ["human", "{input}"],
-]);*/
 
 // Chain your prompt and model together
 const saveHtmlTool =  new DynamicTool({
@@ -104,7 +64,8 @@ const saveAnalysis =  new DynamicTool({
   }
 });
 
-const coderOutputParser = new StringOutputParser();
+//Code to save the html after putting thru tool to cleanse as html
+/*const coderOutputParser = new StringOutputParser();
 const generations: ChatGeneration[] = [
   { text: "{html}", message: new AIMessage("{html}") },
 ];
@@ -119,59 +80,65 @@ coderOutputParser.parseResultWithPrompt(
   promptValue,
 );
 
-const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool);
+const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool);*/
 
 const svgAnalyzerTemplate = `<|begin_of_text|><|start_header_id|>analyser<|end_header_id|>
-Your role is Analyzer. As Analyzer you will have these tasks:\n
-#1. You will examine the requirements for the code. The requirements will be found in {requirement}. 
+Your role is Analyzer. As Analyzer you will examine the requirements for the d3 js code. The requirements will be found in {requirement}. 
 You will articulate what the data representation should show based on the requirements. 
 That is, it will at minimum have x-y axes with labels and the data will be presented in standard graph format. 
 You must be clear in what elements and values should be in the graph.\n
-Put your understanding of what the graph should contain in the json object with key: "analysis"\n
-#2. You will interact with a tool which will provide details about the implementaion of the graph as it has categorized the elements of
-the SVG rendering which you will ask it about. Use the tool's categories when interrogating it.
-This tool has partitioned the information you require into categories. \n
-At all times ask for information from each of it's categories. Ask questions especially using the interrogatory pronouns: "what", "which".
-Do not assume. When in doubt or some part of the puzzle is missing, then ask the tool for clarification.
-The categories are:\n
-1. "tick_x": contains information about the x axis (horizontal) such as intervals and text values. It is important to ask about these values as
-they provide important semantic information about the data on the x-axis.\n
-2. "tick_y": contains information about the y axis (vertical) such as intervals and text values. It is important to ask about these values as
-they provide important semantic information about the data on the y-axis\n
-3. "rects": contains rectangular dimensions. Rectangles can have several uses such as for bar charts or legends. You will understand the
-differences from the context of the requirements;\n
-4. "paths": contains the path commands for the x-y axes.\n\n
-#3. Use one category at a time as this will assist the tool to provide more complete answers.
- If you are not satisfied with the answer then ask again.  Ask your question in json format ;
-#4. If you assess the tool's response as demonstrating that the graph meets the requirements then provide 
-a json output for a score with key "score" giving it a "yes" value.
-#5. If you assess the tool's response as NOT demonstrating that the graph meets the requirements then provide a 
-score of "no" and ask the tool more questions using key: "score".
-#6. Be aware that the question-answers is an iterative process. Thus to avoid asking the same questions, examine previous questions which can 
-be found in {previousQuestions}. Similarly, a complete picture of the graph can be seen from previous answers which are in {previousAnswers}.
-
+You will formulate questions about the rendering of the d3 js code. You will ask another agent which can provide the svg elements 
+that render the graph. The agent has divided the graph elements into the following categories:
+1. "SVG viewBox": contains information about width and height of the view box as well as translations within the view box.\n
+2. "SVG path": there are two types of paths: 1. The path definitions for the x-y axes; and 2. In the case of the line chart there are
+paths defining the dataset of values being represented graphically;\n
+3. "SVG text for axes": displays the text labels on the x and y axes at regular intervals delineated with "tick" marks.\n
+4. "SVG rect": there are two types of rect: 1. The rectangles for bar charts; and 2. the rectangles and text for legends.\n
+Use your understanding of the requirements to formulate questions about the svg rendering of the requirements.\n
+Another agent, Evaluator may ask supplementary questions. Look at these questions and phrase them with your understanding of both the requirements and
+the graph element categories decribed above. If there are supplementary questions you will find them in {toolQuestion}
+Ask your question using the key: "toolQuestion" and place your question there.\n\n
 `
 
 const svgAnalyzerPrompt = new PromptTemplate({
-      inputVariables: ["requirement", "answer", "previousAnswers", "previousQuestions"], 
+      inputVariables: ["requirement", "answer", "previousAnswers", "previousQuestions","stage", "toolQuestion"], 
       template: svgAnalyzerTemplate,
 });
 
 const evaluatorTemplate = `<|begin_of_text|><|start_header_id|>evaluator<|end_header_id|>
 Your role is Evaluator. You will have an understanding of the requirements to code d3 js graphs. 
-The requirements are in {requirement}. Examine the requirements and indicate the types of SVG elements you would expect in order to render the requirements in the browser.\n 
-You will interact with another agent - Analyzer - to understand how well the d3 js graph rendered as 
-SVG elements meets the stated requirements as well as your understanding of the SVG elements that should be rendered. The Analyzer has built up an understanding of how well the SVG graph has rendered the requirements. The Analyzer's observations are in {previousAnswers}. When the Analyzer is complete, a score of "pass" will be provided in {score}. Look for this score as it indicates the Analyzer's role is complete.\n
-If you have the "pass" score then you will summarize the key points of these observations against what SVG elements you think should be rendered. Only when the Analyzer has provided what you expect should be all the SVG elements will you then complete the following task:\n
-***
-Create a summary report of the SVG elements in Analyzer's observations in {previousAnswers}. Your report will be in XML with '<summary_report>' as your root element with whatever child elements seem appropriate but end with the child element '<score>' with the value 'yes' if {score} is 'pass', otherwise '<score>' is "no".
-***
+The requirements are in {requirement}.\n 
+You will receive  questions concerning implementation of the requirements in a d3 js graph, The questions are in {previousQuestions}. 
+You will also receive answers to the questions in {previousAnswers}. Examine the previous answers. Ensure at the very least the following:
+1. The data points are grphically displayed\n
+2. The x-axis labels are displayed, that is, the text values are in the answers\n
+3. The y-axis labels are displayed, that is, the text values are in the answers\n
+If these are not present in the answers, then ask questions for them using the key: "toolQuestion". \n
+If the questions and answers provide sufficient information about the implementation of the graph give a score of "yes".\n
+Create a report outlining how the requirements are implemented.
+Your report will be in XML with '<summary_report>' as your root element with whatever child elements seem appropriate but end with the 
+child element '<score>' with your score of "yes" or "no".
 
 `
 const evaluatorPrompt = new PromptTemplate({
-      inputVariables: [ "requirement", "html", "score", "previousAnswers"],
+      inputVariables: [ "requirement", "html", "score", "previousAnswers", "previousQuestions"],
       template: evaluatorTemplate,
 });
+
+const coderTemplate = `<|begin_of_text|><|start_header_id|>coder<|end_header_id|>Your role is Coder. 
+As coder you are proficient at Scalar Vector Graphics (SVG). You will receive a customized version of an SVG rendering of the coding requirements.
+These requirements are in {requirement}. The customized svg elements are another agent's best understanding of the rendered SVG code.
+You will examine this svg rendering to try to create runnable svg code.  Your input is in {previousAnswers}. 
+This input contains previous interactions with the agent. From this input extract out the svg elements. Then as best you can reconstruct runnable svg code.
+Save the code under the key "svg_elements". Finally, make a report on your findings concerning how well the requirements seem to be rrendered. 
+under the key: "findings".
+
+  `
+const coderPrompt = new PromptTemplate({
+      inputVariables: [  "requirement", "userManual", "previousAnswers"],
+      template: coderTemplate,
+});
+
 const fixerTemplate = `<|begin_of_text|><|start_header_id|>fixer<|end_header_id|>You are expert in JavaScript and the d3 js framework. Your role is code Fixer. You will fix code that has errors. You will receive an XML report. If there are errors, there will be a message and other information such as the line number and position in 
     the line where the error occurs. Look carefully for the indicators of error. Look in the error message for the line number followed by the position in the line of the error. The line and the position are separated by a colon . The report is in {svg_elements}.\n
     If there are no errors then simply report that fact.\n\n
@@ -208,22 +175,126 @@ const csvDataTool =  new DynamicTool({
 	  const res = await getSVG_XMLData_();//getSVGData()local;//getSVG_XMLData() uses llamaindex;
 	  return res;
   }
-});*/
+});
 
+
+      const csvPath = "./svg mapping.txt";
+      let data = await readFileSync('./svg mapping.txt',  "utf-8").toString();
+
+      const embeddingFunction = new OpenAIEmbeddingFunction({
+        openai_api_key: process.env["OPENAI_API_KEY"] as string,
+        openai_model: "text-embedding-3-small"
+      })
+    const collection = await this.client.getOrCreateCollection({name: "svg_elements", embeddingFunction: embeddingFunction});
+    await collection.add({
+      documents: data,
+      ids: "SVG_Text",
+    //  metadatas: [{ "svgType": "width_and_height" }],
+    });
+    const results = await collection.query({
+      queryTexts: ["Tell me about path categories"],
+      nResults: 20,
+    });
+*/
+
+/*****************************************
+ * Chromadb
+ */
 const svg_xmlDataTool =  new DynamicTool({
+  name: "SVG_XML_Data_Retrieval",
+  description:
+    "call this to provide the unique XML conceptualization of rendered SVG elements ",
+  func: async (request) => {
+    const csvPath = "./line chart.csv";
+    const name = "svg_csv";
+    const client = new ChromaAgent();
+    await client.loadCSVFile(csvPath, name);
+    console.log("REQUEST....",request)
+    
+    const results = await client.querySVGVectors(`An autonomous agent has generated an analysis of what it thinks the graph in SVG
+        should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
+        the general question with specific values as numbers or text.
+        ***********` + request + "***********", name);
+        
+        let res = results;
+        console.log("RES....",res)
+        let score = "no";
+        if(res.includes("yes")){
+          score = "pass";
+        }
+        let result = {answer: res as string, toolQuestion: request, score: score};
+    
+        return result;
+    }
+  
+});
+
+
+const svg_xmlDataTool__ =  new DynamicTool({
+  name: "SVG_XML_Data_Retrieval",
+  description:
+    "call this to provide the unique XML conceptualization of rendered SVG elements ",
+  func: async (request) => {
+    const csvPath = "./svg mapping.txt";
+    let data = await readFileSync('./svg mapping.txt',  "utf-8").toString();
+
+    const embeddingFunction = new OpenAIEmbeddingFunction({
+      openai_api_key: process.env["OPENAI_API_KEY"] as string,
+      openai_model: "text-embedding-3-small"
+    })
+
+    const path = 'C:/salesforce/repos/Claude tools/';
+    const svgFile = "svg.txt";
+    const xfile = "tickX.txt";
+    const yfile = "tickY.txt";
+    const rectFile = "rect.txt";
+    const pathFile = "path.txt";
+    const linePathFile = "linePath.txt";
+    const client = new ChromaAgent();
+    console.log("REQUEST....",request)
+    let collection = await client.getDocumentChromaNodes(path+svgFile, "svg", "viewBox dimensions");
+    collection = await client.getDocumentChromaNodes(path+xfile, "tick_x","ticks on x-axis");
+    collection = await client.getDocumentChromaNodes(path+yfile, "tick_y", "ticks on y-axis");
+    collection = await client.getDocumentChromaNodes(path+rectFile, "rects", "rects info");
+    collection = await client.getDocumentChromaNodes(path+pathFile, "paths", "paths for x-y axes");
+    collection = await client.getDocumentChromaNodes(path+linePathFile, "line_charts","line chart data");
+       
+    const results = await collection.query({
+          queryTexts: [`An autonomous agent has generated an analysis of what it thinks the graph in SVG
+        should represent. It will provide its analysis and a question to you.Answer the specific question and only the question. The analysis and question are:
+        ` + request],
+          nResults: 20,
+        });
+        
+        let res = results.documents.toString();
+        console.log("RES....",res)
+        let score = "no";
+        if(res.includes("yes")){
+          score = "pass";
+        }
+        let result = {answer: res as string, toolQuestion: request, score: score};
+    
+        return result;
+    }
+  
+});
+
+//llamaindex
+const svg_xmlDataTool_ =  new DynamicTool({
   name: "SVG_XML_Data_Retrieval",
   description:
     "call this to provide the unique XML conceptualization of rendered SVG elements ",
   func: async (request) => {
       const documents: Document[] = await getDocumentNodes();
       const index = await VectorStoreIndex.fromDocuments(documents);
-        const retriever = index.asRetriever({
+      /*  const retriever = index.asRetriever({
             similarityTopK: 10,
-          });
-
-        let infoAndRequest = `An autonomous agent has generated an analysis of what it thinks the graph should look like. This
-        agent relies on you to interpret the svg elements that are available to you. Look at its analysis and answer in as much detail as you can.
-        The agent's analysis is: ` + request
+          });*/
+        
+        let infoAndRequest = `An autonomous agent has generated an analysis of what it thinks the graph in SVG
+        should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
+        the general question with specific values as numbers or text.
+        ***********` + request + "***********"
         const queryEngine = index.asQueryEngine();
         const res = await queryEngine.query({
           query: infoAndRequest,
@@ -251,39 +322,57 @@ const retriever = new ChatAnthropic({
 });//.bindTools([csvDataTool]);
 //not sure if this is needed
 const outputParser = new StringOutputParser();
+const coderOutputParser = new StringOutputParser();
 const jsonOutputParser = new JsonOutputParser();
 const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool);
 
-const analyzer = new ChatAnthropic({
+const analyzer__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });//.bindTools([svg_xmlDataTool]);
 
-const analyzer_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
-//const analyzerChain = svgAnalyzerPrompt.pipe(svg_xmlDataTool).pipe(outputParser).pipe(analyzer); 
-const analyzerChain = svgAnalyzerPrompt.pipe(analyzer).pipe(outputParser).pipe(svg_xmlDataTool);//.pipe(jsonOutputParser); 
 
-const evaluator = new ChatAnthropic({
+
+const analyzer = new ChatOllama({
+  model: "llama3",
+  temperature: 0,
+  // other params...
+});//.bindTools([svg_xmlDataTool]);
+
+const analyzer_ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+//const analyzerChain = svgAnalyzerPrompt.pipe(svg_xmlDataTool).pipe(outputParser).pipe(analyzer); 
+const analyzerChain = svgAnalyzerPrompt.pipe(analyzer).pipe(outputParser);//.pipe(svg_xmlDataTool);//.pipe(jsonOutputParser); 
+
+const evaluator_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });
-const evaluator_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+
+const evaluator = new ChatOllama({
+  model: "llama3",
+  temperature: 0,
+  // other params...
+});
+
+const evaluator__ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const evaluatorChain = evaluatorPrompt.pipe(evaluator).pipe(outputParser);
-/*const toolCallingAgent = new OpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});
-const tools = [...];
 
-const agen = createToolCallingAgent({ toolCallingAgent, tools, prompt });
-const tools = [new Calculator()];
-const agent = await createToolCallingAgent({
-  toolCallingAgent,
-  tools,
-  retrieverPrompt,
-});*/
+const coder_ = new ChatAnthropic({
+  model: "claude-3-opus-20240229",
+  temperature: 0,
+  apiKey: ANTHROPIC_API_KEY
+});//.bindTools([csvDataTool]);
 
+const coder = new ChatOllama({
+  model: "llama3",
+  temperature: 0,
+  // other params...
+});
 
-
+const coder__ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser);
 
 /************************************************************ */
 
@@ -321,17 +410,25 @@ const StateAnnotation = Annotation.Root({
   previousAnswers: Annotation<string[]>,
   previousQuestions: Annotation<string[]>,
   score:  Annotation<string>,
+  stage: Annotation<string>,
+  userManual:  Annotation<string>,
+  svgMapping:  Annotation<string>,
 });
 
 // Define the function that determines whether to continue or not
 // We can extract the state typing via `StateAnnotation.State`
 async function shouldContinue(state: typeof StateAnnotation.State) {
    if(state["score"]== "no"){
- 
-    return "analyzer" 
+   //if(state["toolQuestion"] != ""){
+      return "analyzer" 
+//}
+ //     else {
+ //     return "analyzer"
+ //   }
    } else {
     console.log("endddddddddddd", state)
-    return "__end__";
+   // return "__end__";
+   return "coder"
    }
  //   return "__end__";
 }
@@ -340,8 +437,14 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...Anal")
   console.log("state",state)
 
-   const agentResponse = await analyzerChain.invoke({requirement: state.requirement, answer: state.answer, previousAnswers: state.previousAnswers, previousQuestions: state.previousQuestions});
-  if(agentResponse["answer"]){
+   const agentResponse = await analyzerChain.invoke({requirement: state.requirement, answer: state.answer, previousAnswers: state.previousAnswers, previousQuestions: state.previousQuestions, stage: state.stage, toolQuestion:state.toolQuestion});
+   state["toolQuestion"] = agentResponse;
+  if(agentResponse.includes("toolQuestion")){
+    console.log("TOOOOOOOOOOOOOOOOOOL")
+    let idx = agentResponse.lastIndexOf("toolQuestion");
+    state["toolQuestion"] = agentResponse;//.substring(idx, idx + 250);
+  }
+   /*if(agentResponse["answer"]){
     state["answer"] = agentResponse["answer"]
     state["previousAnswers"].push(agentResponse["answer"]);
   }
@@ -356,12 +459,9 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
   if(agentResponse["toolQuestion"]){
     state["toolQuestion"] = agentResponse["toolQuestion"];
     state["previousQuestions"].push(agentResponse["toolQuestion"]);
-  }
+  }*/
  // state["previousQuestions"].push(agentResponse.content.toString());
   
- writeFileSync('C:/salesforce/repos/Claude tools/findings.txt', agentResponse+"\n", {
-  flag: 'a',
-});
   /*response: analyzer gets question with prompt about rects
   {
     toolQuestion: "How many SVG 'rect' elements are present in the SVG rendering of the bar graph?"
@@ -381,20 +481,38 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
   console.log("anal state end", state)
   return state;
 }
-
+/****************************************************************
+ *   const documents: Document[] = await getDocumentNodes();
+      const index = await VectorStoreIndex.fromDocuments(documents);
+      /  const retriever = index.asRetriever({
+            similarityTopK: 10,
+          });/
+        
+          let infoAndRequest = `An autonomous agent has generated an analysis of what it thinks the graph in SVG
+          should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
+          the general question with specific values as numbers or text.
+          ***********` + request + "***********"
+          const queryEngine = index.asQueryEngine();
+          const res = await queryEngine.query({
+            query: infoAndRequest,
+          });
+          console.log("req", infoAndRequest)
+          console.log("res", res)
+ */
 async function toolAgent(state: typeof StateAnnotation.State) {
   console.log("state", state)
   //"How many SVG 'rect' elements are present in the graph, and do they correspond to the number of years from 2001 to 2021?";
   const request =  state["toolQuestion"];
   console.log("Hereee", request)
-  const documents: Document[] = await getDocumentNodes();
+  const documents: Document[] = await getDocumentNodes();//loadCSVFile();
   const index = await VectorStoreIndex.fromDocuments(documents);
-    const retriever = index.asRetriever({
-        similarityTopK: 10,
-      });
+  let infoAndRequest = `An autonomous agent has generated an analysis of what it thinks the graph in SVG
+  should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
+  the general question with specific values as numbers or text.
+  ***********` + request + "***********"
     const queryEngine = index.asQueryEngine();
     const res = await queryEngine.query({
-      query: request,
+      query: infoAndRequest,
     });
     state["answer"] = res.message.content as string;
     state["previousAnswers"].push(state["answer"]);
@@ -402,19 +520,35 @@ async function toolAgent(state: typeof StateAnnotation.State) {
     return state;
 }
 
-async function codeAgent(state: typeof StateAnnotation.State) {
+//See above note
+/*async function codeAgent(state: typeof StateAnnotation.State) {
     console.log("HERE...CODER")
     //coderChain.
     const agentResponse:AIMessage = await coderChain.invoke({ data: state.data, requirement: state.requirement, recommendation: state.recommendation,html: state.html });
     console.log("Coder>>end", agentResponse?.content)
     //return "__end__";
-   return ({/*"image_report": svg_elements,*/ html: agentResponse?.content});
+   return ({/"image_report": svg_elements,/ html: agentResponse?.content});
+}*/
+
+async function codeAgent(state: typeof StateAnnotation.State) {
+  console.log("HERE...CODER")
+  //coderChain.
+  const agentResponse = await coderChain.invoke({ requirement: state.requirement, userManual: state.userManual, previousAnswers: state.previousAnswers});
+  console.log("Coder>>end", agentResponse)
+  //return "__end__";
+ return state;
 }
 
 async function evalAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...EVAL")
-  const agentResponse: string = await evaluatorChain.invoke({ requirement: state.requirement, html: state.html, score: state.score, previousAnswers: state.previousAnswers });
+  state["stage"] = "2";
+  const agentResponse: string = await evaluatorChain.invoke({ requirement: state.requirement, html: state.html, score: state.score, previousAnswers: state.previousAnswers, previousQuestions: state.previousQuestions });
  console.log("EVAL RES", agentResponse)
+ state["toolQuestion"] = "";
+ if(agentResponse.includes("toolQuestion")){
+  console.log("TOOOOOL  EVAL")
+  state["toolQuestion"] = agentResponse;//.substring(idx, idx + 250);
+}
  if(agentResponse.includes("yes")){
   state["score"] = "yes";
  }
@@ -436,15 +570,17 @@ async function retrieverAgent(state: typeof StateAnnotation.State) {
 
 // Define a new graph
 const workflow = new StateGraph(StateAnnotation)
- // .addNode("coder", codeAgent)
+  .addNode("coder", codeAgent)
+  //.addNode("retriever", retrieverAgent)
   //.addNode("retriever", retrieverAgent)
   .addNode("evaluator", evalAgent)
   .addNode("analyzer",analyzerAgent)
-  //.addNode("tools", toolAgent)
+  .addNode("tools", toolAgent)
   .addEdge("__start__", "analyzer")
  // .addEdge("__start__", "retriever")
-  .addEdge( "analyzer", "evaluator")
- // .addEdge( "tools", "analyzer")
+ // .addEdge(   "evaluator", "analyzer")
+.addEdge(  "analyzer" , "tools")
+.addEdge( "tools", "evaluator")
  // .addEdge("retriever", "coder")
   .addConditionalEdges("evaluator", shouldContinue);
 
@@ -457,13 +593,15 @@ const checkpointer = new MemorySaver();
 const app = workflow.compile({ checkpointer });
 
 
-async function readFile(){
-try {
-  const data = readFileSync('./file.txt', 'utf8');
-  console.log("test",data);
+async function readStoreManual(){
+let data = "";
+  try {
+  data = readFileSync('./custom svg mappings.txt', 'utf8');
+  
 } catch (err) {
   console.error(err);
 }
+  return data;
 }
 
 // Use the Runnable
@@ -474,13 +612,25 @@ export async function main() {
   await browser.findElements().then(_ => {
     readFile();
   });*/
-
+ // await testGetfromLlamaindex();
  // await createToolCallingAgent() works perfectly;
  /*const tools =  await createToolCallingAgent();
  console.log("tto",tools)
  doesn't understand - needs more clarification
  askSVGToolAgent();*/
- 
+
+ //await testGetfromLlamaindex();
+
+
+//let agent = new ChromaAgent();
+//await agent.loadTextFile();
+/*const client = new ChromaAgent();
+await client.delCollection("svg_csv", "SVG")
+await client.loadCSVFile('./line chart.csv', "svg_csv")
+const results = await client.querySVGVectors(`how many categories are there`, "svg_csv");
+  console.log(results)*/
+
+  const manual = "";//await readStoreManual();
  let requirement = "The requirement is to produce a d3 js bar graph depicting the wages of one industry: 'Agriculture' for all years '2001' to '2021'. You will be provided with the years and the wages as an input string in CSV format.";
  requirement= "Create a d3 js line graph with a legend at the bottom of the graph. The graph depicts the number of employees in 3 industries for the years 2001,2002,2003. The industries are: Agriculture, Mining, Utilities."
  
@@ -488,11 +638,10 @@ export async function main() {
 Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46449,44886,43869,42319,40592,39199,38216,37205,36297,34591` 
  //const data = `75,104,369,300,92,64,265,35,287,69,52,23,287,87,114,114,98,137,87,90,63,69,80,113,58,115,30,35,92,460,74,72,63,115,60,75,31,277,52,218,132,316,127,87,449,46,345,48,184,149,345,92,749,93,9502,138,48,87,103,32,93,57,109,127,149,78,162,173,87,184,288,576,460,150,127,92,84,115,218,404,52,85,66,52,201,287,69,114,379,115,161,91,231,230,822,115,80,58,207,171,156,91,138,104,691,74,87,63,333,125,196,57,92,127,136,129,66,80,115,87,57,172,184,230,153,162,104,165,1036,69,196,38,92,162,806,105,69,29,633,102,87,345,58,56,35,49,92,156,58,104,167,115,87,800,87,322,65,149,34,69,69,391,58,58,207,61,253,109,69,57,56,114,58,80,149,287,57,138,92,87,103,230,57,724,50,92,79,92,45,196,29,69,253,173,438,173,218,115,58,92,115,230,87,287,53,80,92,89,4607,173,96,80,115,104,138,92,48,98,231,127,114,91,115,80,403,253,75,63,69,92,171,58,104,47,53,80,213,1498,104,125,127,58,432,90,52,69,173,75,69,139,127,45,87,138,92,58,208,52,149,60,89,119,287,74,138,171,391,104,35,92,656,90,92,103,69,345,115,87,107,93,92,247,172,58,34,99,104,57,80,345,461,330,80,75,94,104,218,58,115,79,108,184,115,60,101,40,92,102,3283,126,92,225,107,288,63,62,80,69,115,46,102,60,40,345,63,114,74,80,144,56,127,98,104,71,98,104,92,208,287,93,230,196,290,164,91,115,40,92,127,231,104,58,610,225,183,98,81,115,97,438,111,173,346,80,172,126,126,317,59,52,197,80,58,577,127,214,71,32,127,115,64,149,1035,80,1612,98,92,58,278,45,69,215,69,92,172,75,58,101,80,137,805,515,149,92,93,125,63,863,231,115,70,115,80,127,98,127,113,69,61,645,23,69,58,104,196,137,93,518,145,58,103,69,123,53,173,230,63,403,93,115,87,74,90,1036,93,160,201,131,460,287,61,98,64,46,138,149,74,56,80,92,67,133,403,160,138,63,69,69,331,92,368,103,92,180,114,58,115,144,345,172,98,76,67,68,80,345,490,62,190,46,91,231,93,79,83,115,58,139,162`
 
- const inputs = { "requirement": requirement, "previousAnswers": [], "previousQuestions": []}
+ const inputs = { "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "", "userManual": manual}
  // console.log(inputs)
   var config =  { "configurable": { "thread_id": "42" } }
-  
-  const finalState = await app.invoke(
+ const finalState = await app.invoke(
     inputs,
     { configurable: { thread_id: "42" }  }
   );
