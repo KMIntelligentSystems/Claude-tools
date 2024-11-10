@@ -146,7 +146,7 @@ export async function setPaths(p: string){
     
     let splitArray = p.split(",");
     
-    let start = splitArray[0];
+    let start = splitArray[0]?.substring(1);
     let end: string = splitArray[1] as string;
   
     path = path + move_from + start + move_from_end;
@@ -393,8 +393,8 @@ function setTransforms_(globalTransforms: string[]):string{
   }
 
   export async function setLinePaths(p: string){
-    let path = "<path>";
-    let path_end = "</path>";
+    let path = "<chart_line>";
+    let path_end = "</chart_line>";
     let move_from = "<move_from>";
     let move_from_end = "</move_from>";
     
@@ -408,6 +408,12 @@ function setTransforms_(globalTransforms: string[]):string{
     }
     
     return path + path_end;
+  }
+
+  export async function setLinePathColors(color: string){
+    let stroke_start = "<stroke_color>";
+    let stroke_end = "</stroke_color>";
+    return stroke_start + color + stroke_end;
   }
 
   function getLinePathCommands(command: string): string{
