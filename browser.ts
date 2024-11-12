@@ -4,7 +4,7 @@ import { Builder,/*Browser,*/ ThenableWebDriver, WebElement, By, WebElementPromi
 import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
 import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, 
-  setPaths, setRect, setLinePaths, setRectFill, setLegendText} from './test'
+  setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors} from './test'
 
 /*
 Tool to add web elements to vector store using chromadb
@@ -54,7 +54,8 @@ export class Browser {
                  v.getAttribute("height").then(h => {
                     v.getAttribute("width").then(w => {
                       let val = setSVG(h,w);
-                      this.log(comment + val, "svg");
+                     // console.log("svg element", val);
+                      this.log(val, "svg");
                     })
                   })
                 }
@@ -72,12 +73,14 @@ export class Browser {
                
                 if(v1){
                   setTransforms(v1).then(t => {
-                    if(!commentAdded){
+                  //  console.log("transform", t)
+                    this.log(t, "svg");
+                   /* if(!commentAdded){
                       this.log(comment + t, "svg");
                       commentAdded = true;
                     } else{
                       this.log(t, "svg");
-                    } 
+                    } */
                   })
                 }
               })
@@ -95,22 +98,13 @@ export class Browser {
       for (var v of value) {
         v.getAttribute("transform").then(v1 => {
          setTranslate(v1).then(t => {
+         // console.log("tickxy", t)
           //The y is 0 thus straight line
-          if(t.includes("<y>0</y>")){
-            if(!commentX){
-              this.log(commentForX + t, "tick_x")
-              commentX = true;
-            }else{
+          if(t.includes(",0")){
               this.log(t, "tick_x")
-            }
-          } else {
+          } else if(t.includes("0,"))  {
             //Just vertical line
-            if(!commentY){
-              this.log(commentForY + t, "tick_y")
-              commentY = true;
-            }else{
               this.log(t, "tick_y")
-            }
           }
          })
         })
@@ -129,7 +123,7 @@ public async getTickLine(){
         v.getAttribute("y2").then(val =>{
             if(val){
                 setTickLines(val, "y2").then(l => {
-                  let val: string= "line_len_x>" + l + "</line_len_x>";
+                  let val: string= "<line_len_x>" + l + "</line_len_x>";
                   if(!commentForX){
                     this.log(commentX + val, "tick_x");
                     commentForX = true;
@@ -142,7 +136,7 @@ public async getTickLine(){
         v.getAttribute("x2").then(val =>{
             if(val){
                 setTickLines(val, "x2").then(l => {
-                  let val: string= "line_len_y>" + l + "</line_len_y>";
+                  let val: string= "<line_len_y>" + l + "</line_len_y>";
                   if(!commentForY){
                     this.log(commentY + val, "tick_y");
                     commentForY = true;
@@ -173,24 +167,16 @@ public async getTickLine(){
           v.getAttribute("x").then(val =>{
               if(val){
                   setTickText(v_, val,"x2").then(l => {
-                    if(!commentForY){
-                      this.log(commentY + l, "tick_y");
-                      commentForY = true;
-                    } else {
-                      this.log(l, "tick_y");
-                    }
+                   // console.log("ticktext x", l)
+                      this.log(l, "tick_text_y");
                   });
               }   
           })
           v.getAttribute("y").then(val =>{
               if(val){
                   setTickText(v_, val,"y2").then(l => {
-                    if(!commentForX){
-                      this.log(commentX + l, "tick_x");
-                      commentForX = true;
-                    } else {
-                      this.log(l, "tick_x");
-                    }
+                   // console.log("ticktext y", l)
+                      this.log(l, "tick_text_x");
                  });
               } 
           })
@@ -206,16 +192,13 @@ public async getTickLine(){
         for (var v of value) {
             v.getRect().then(val =>{
             setRect(val.x, val.y, val.height, val.width).then(r => {
-              if(!commentForRect){
-                this.log(comment + r, "rects");
-                commentForRect = true;
-              } else{
                 this.log(r, "rects");
-              }
+             //console.log("rect", r)
             })
         })
         v.getAttribute("fill").then(val => {
           setRectFill(val).then(f => {
+           // console.log("rect fill", f)
             this.log(f, "rects");
           });
         })
@@ -229,14 +212,23 @@ public async getTickLine(){
     const promiseLineTxt = this.driver.findElements(By.xpath("//*[name()='g']//*[name()='g']//*[name()='text']"));
     promiseLineTxt.then(value =>{
       for (var v of value) {
+        v.getAttribute("x").then(val => {
+         // console.log("legend x", val)
+         this.log(val, "all_x_pos");
+        })
+        v.getAttribute("y").then(val => {
+         // console.log("legend y", val)
+         this.log(val, "all_y_pos");
+        })
         v.getText().then(val =>{
-          
-          setLegendText(val).then(t => {
+        //  console.log("legend txt", val)
+        this.log(val, "all_text");
+         /* setLegendText(val).then(t => {
             const regexp = /\d+/;
             if(!t.match(regexp)){
               this.log(t, "rects");
             }
-          })
+          })*/
         })
       }
     })
@@ -250,12 +242,8 @@ public async getTickLine(){
       for (var v of value) {
           v.getAttribute("d").then(val =>{
               setPaths(val).then(p => {
-                if(!commentForPath){
-                  this.log(comment + p, "paths");
-                  commentForPath = true;               
-                }else{
-                  this.log(p, "paths");
-                }
+                this.log(p, "paths");
+               //console.log("xy axes", p)
               })
           })
         }
@@ -265,18 +253,21 @@ public async getTickLine(){
   public async getLines(){
     const promisePath = this.driver.findElements(By.xpath("//*[name()='path'and @class='line']"));
     let comment = "<!-- The paths define the line chart --> ";
+    let commentStroke = "<!-- The paths have unique colors --> ";
     let commentForPath = false;
+    let commentStrokeDone = false;
     promisePath.then(value =>{
       for (var v of value) {
           v.getAttribute("d").then(val =>{
+            console.log("line paths---", val)
               setLinePaths(val).then(p => {
-                if(!commentForPath){
-                  this.log(comment + p, "line_paths");
-                  commentForPath = true;               
-                }else{
-                  this.log(p, "line_paths");
-                }
+                this.log(p, "chart_lines");
               })
+          })
+          v.getAttribute("stroke").then(val =>{
+            setLinePathColors(val).then(c => {
+              this.log(c, "chart_lines_fill");
+            })
           })
         }
     })
@@ -287,9 +278,9 @@ public async getTickLine(){
          await this.delFiles();
          await this.getSVGElement();
          await this.getTickXY();
-         await this.getTickLine();
+       //  await this.getTickLine();
          await this.getTickText();
-         await this.getTransforms();
+       //  await this.getTransforms();
          await this.getRects();
          await this.getPaths();
          await this.getLines();
@@ -310,8 +301,23 @@ public async getTickLine(){
       const rectFile = "rect.txt";
       const pathFile = "path.txt";
       const linePathFile = "linePath.txt";
+      const allTextFile = "allText.txt";
+      const allXPosFile = "allXPos.txt"
+      const allYPosFile = "allYPos.txt"
+      const txtTickXFile ="tick_text_x.txt";
+      const txtTickYFile ="tick_text_y.txt";
+      const linePathFillFile = "linePathFill.txt";
       if(existsSync(path+svgFile)){
         unlinkSync(path+svgFile);
+      }
+      if(existsSync(path+txtTickXFile)){
+        unlinkSync(path+txtTickXFile);
+      }
+      if(existsSync(path+txtTickYFile)){
+        unlinkSync(path+txtTickYFile);
+      }
+      if(existsSync(path+linePathFillFile)){
+        unlinkSync(path+linePathFillFile);
       }
       if(existsSync(path+xfile)){
         unlinkSync(path+xfile);
@@ -328,6 +334,15 @@ public async getTickLine(){
       if(existsSync(path+linePathFile)){
         unlinkSync(path+linePathFile);
       }
+      if(existsSync(path+allTextFile)){
+        unlinkSync(path+allTextFile);
+      }
+      if(existsSync(path+allXPosFile)){
+        unlinkSync(path+allXPosFile);
+      }
+      if(existsSync(path+allYPosFile)){
+        unlinkSync(path+allYPosFile);
+      }
   } catch (err) {
       console.error('Error deleting the file:', err);
   }
@@ -337,10 +352,16 @@ public async getTickLine(){
     const path = 'C:/salesforce/repos/Claude tools/';
     const svgFile = "svg.txt";
     const xfile = "tickX.txt";
+    const txtTickX ="tick_text_x.txt";
+    const txtTickY ="tick_text_y.txt";
     const yfile = "tickY.txt";
     const rectFile = "rect.txt";
     const pathFile = "path.txt";
     const linePathFile = "linePath.txt";
+    const linePathFill = "linePathFill.txt";
+    const allTextFile = "allText.txt";
+    const allXPosFile = "allXPos.txt"
+    const allYPosFile = "allYPos.txt"
     if(type == "svg"){
       writeFileSync(path+svgFile, val+"\n", {
         flag: 'a',
@@ -361,8 +382,33 @@ public async getTickLine(){
       writeFileSync(path+pathFile, val+"\n", {
         flag: 'a',
       });
-    }else if (type == 'line_paths'){
+    }else if (type == 'chart_lines'){
       writeFileSync(path+linePathFile, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'chart_lines_fill'){
+      writeFileSync(path+linePathFill, val+"\n", {
+        flag: 'a',
+      });
+    }
+    else if (type == 'all_text'){
+      writeFileSync(path+allTextFile, val+"\n", {
+        flag: 'a',
+      });
+    } else if (type == 'all_x_pos'){
+      writeFileSync(path+allXPosFile, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'all_y_pos'){
+      writeFileSync(path+allYPosFile, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'tick_text_y'){
+      writeFileSync(path+txtTickY, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'tick_text_x'){
+      writeFileSync(path+txtTickX, val+"\n", {
         flag: 'a',
       });
     }
