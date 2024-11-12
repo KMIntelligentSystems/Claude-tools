@@ -86,8 +86,14 @@ export  function setSVG(height: string, width: string){
     let h_end = "</height>";
     let w = "<width>";
     let w_end = "</width>";
-    
-    res = h + height + h_end + w + width + w_end;
+
+    let width_ = "<svg width=";
+    let quote = '"';
+    let height_ = "height=";
+    let end = ">";
+    res = width_ + quote + width + quote + height_ + quote + height + quote +  end;
+    //<svg width="800" height="400">
+   // res = h + height + h_end + w + width + w_end;
  
     return res as string;
 }
@@ -98,7 +104,11 @@ export async function setTranslate(trans: string){
     let vals:any[] = trans.substring(start, end).split(",");
     let x = "<x>" + vals[0] + "</x>";
     let y = "<y>" + vals[1] + "</y>";
-    let res = "<translate>" + x + y + "</translate>";
+//    let res = "<translate>" + x + y + "</translate>";*/
+    //<g class="tick" transform="translate(0,330)">
+    let quote = '"';
+
+    let res = "<g class=" + quote + "tick" + quote + "transform=" + quote + "translate(" + vals[0] + "," + vals[1] + ")"
     return res;
 }
 
@@ -115,6 +125,14 @@ export async function setTickLines(line: string, type: string){
 }
 
 export async function setTickText(text: string, pos: string, type: string){
+     //<text  x="-9">0</text></g>
+     let quote = '"';
+     let res = "<text  x=" + quote + pos + quote + ">" + text + "</text></g>";
+
+     return res;
+}
+
+export async function setTickText_(text: string, pos: string, type: string){
     let line_text_x = "<line_text_x>";
     let line_text_x_end = "</line_text_x>";
     let line_text_y = "<line_text_y>";
@@ -124,6 +142,7 @@ export async function setTickText(text: string, pos: string, type: string){
     let y2 = "<line_len_y>";
     let y2_end = "</line_len_y>"
     //y2 is for the line meaning x2 is 0 as is x1 and y1
+   
     if(type == "y2"){
         x2 = x2 + pos + x2_end;
         line_text_x =line_text_x + text + line_text_x_end;
@@ -133,10 +152,21 @@ export async function setTickText(text: string, pos: string, type: string){
         line_text_y =line_text_y + text + line_text_y_end;
         return line_text_y;
     }
+
+    let g_start = `<g class="tick" transform=`;
+
+    //<g class="tick" transform="translate(0,0)"><line y2="6"></line><text y="9">2001</text></g>
+
 }
 
-
+//<path class="domain" d="M0,6V0H710V6"></path>
 export async function setPaths(p: string){
+    let q = '"';
+    let res = "<path class=" + q + "domain" + q + " d=" + q + p + q + "></path>";
+    return res;
+}
+    //"M0,6V0H390V6"
+export async function setPaths__(p: string){
     //"M0,6V0H390V6"
 
     let path = "<path>";
@@ -172,10 +202,25 @@ export async function setPaths(p: string){
     const y1 = splitArray[1];
    
     let transforms = transform + x + x1 + x_end + y + y1 + y_end + transform_end;
-    return transforms;
-  }
 
-export async function setRect(x_: number, y_: number, h: number, w: number){
+    let g = "<g transform=";
+    let quote = '"';
+    let translate = "translate(";
+    let bracket = ")";
+    let end_ = ">";
+    let res = g + quote + translate + x1 + "," + y1 + bracket + end_;
+    //<g transform="translate(70,20)">
+
+    return res;
+  }
+//<rect x="100" y="12" width="10" height="10" fill="#1f77b4"></rect>
+export async function setRect(x: number, y: number, h: number, w: number){
+    let quote = '"';
+    let res = "<rect x=" + quote  + x + quote + " y=" + quote + y + quote + " width=" + quote + w + quote + " height=" + quote + h + quote;
+    return res;
+}
+
+export async function setRect__(x_: number, y_: number, h: number, w: number){
    
     let rect = "<rect>";
     let rect_end = "</rect>";
@@ -191,17 +236,20 @@ export async function setRect(x_: number, y_: number, h: number, w: number){
     let res = rect + x + x_ + x_end + y + y_ + y_end + width + w + width_end + height + h + height_end + rect_end;
     return res;
 }
-
+// fill="#1f77b4"></rect>
 export async function setRectFill(fill: string){
   let rect_color = "<rect_color>";
   let rect_color_end = "</rect_color>";
-
-  return rect_color + fill + rect_color_end;
+  let q = '"';
+  let res = "fill=" + q + fill + q + "></rect>";
+  return res;
 }
-
+//<text x="18" y="10">Mining</text>
 export async function setLegendText(text:  string){
     let legend = "<legend_txt>";
     let legend_end = "</legend_txt>";
+    let q = '"';
+   // let res = "<text x=" + q + 
 
     return legend + text + legend_end;
   }
@@ -391,8 +439,13 @@ function setTransforms_(globalTransforms: string[]):string{
     }
     return paths_ + "</paths>";
   }
-
+//<path class="line" d="M0,65.399L355,71.852L710,83.987" stroke="#1f77b4"></path>
   export async function setLinePaths(p: string){
+    let q = "'";
+    let res = "<path class=" + q + "line" + q + " d=" + q + p + q;
+    return res;
+  }
+  export async function setLinePaths_(p: string){
     let path = "<chart_line>";
     let path_end = "</chart_line>";
     let move_from = "<move_from>";
@@ -409,11 +462,13 @@ function setTransforms_(globalTransforms: string[]):string{
     
     return path + path_end;
   }
-
+  // stroke="#1f77b4"></path>
   export async function setLinePathColors(color: string){
     let stroke_start = "<stroke_color>";
     let stroke_end = "</stroke_color>";
-    return stroke_start + color + stroke_end;
+    let q = '"';
+    let res = " stroke=" + q + color + q + "></path>";
+    return res;
   }
 
   function getLinePathCommands(command: string): string{
