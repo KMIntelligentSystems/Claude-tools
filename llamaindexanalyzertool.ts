@@ -2,6 +2,7 @@ import {ChromaVectorStore,OpenAIEmbedding, SimpleDirectoryReader, VectorStoreInd
     Settings, StorageContext, HuggingFaceEmbedding,VectorStoreQueryMode,  Document, RetrieverQueryEngine, QueryEngineTool,
 OpenAIAgent} from "llamaindex";
 import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 
  /****************************************
    * vector-store based indices generate embeddings during index construction
@@ -59,7 +60,7 @@ console.log(res)
    
     let data = await readFileSync(path+svgFile,  "utf-8");
 
-    let svg = new Document({ text: data, id_: "svg", metadata:{svgId: "000"} });
+    /*let svg = new Document({ text: data, id_: "view_box", metadata:{svgId: "000"} });
     docs.push(svg);
     data = await readFileSync(path+xfile,  "utf-8");
     let tick_x = new Document({ text: data, id_: "tick_x", metadata:{svgId: "010"} });
@@ -76,10 +77,27 @@ console.log(res)
     docs.push(paths);
 
     data = await readFileSync(path+linePathFile,  "utf-8");
-    let linePaths = new Document({ text: data, id_: "line_paths", metadata: {svgId: "110"}});
-    docs.push(linePaths);
-    
+    let linePaths = new Document({ text: data, id_: "chart_lines", metadata: {svgId: "110"}});
+    docs.push(linePaths);*/
+
+    data = await readFileSync('./svgMapping.txt', 'utf8');//mapping of svg.txt
+    let manual = new Document({ text: data, id_: "user_manual", metadata: {svgId: "111"}});
+    docs.push(manual);
+
     return docs;
+  }
+
+  export async function loadCSVFile(){
+    let llamadocs:Document[] = [];
+    const csvPath = "./line chart_1.csv";
+    const loader = new CSVLoader(csvPath);
+    const docs = await loader.load();
+    let content = docs[0]?.pageContent as string;
+
+    let manual = new Document({ text: content, id_: "svg_elements", metadata: {svgId: "111"}});
+    llamadocs.push(manual);
+
+    return llamadocs;
   }
   
 //createToolCallingAgent();
