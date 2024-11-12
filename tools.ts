@@ -10,6 +10,8 @@ import {
   } from "llamaindex";
 
   import * as fs from 'fs';
+  import { join } from 'path';
+  import {svgHeading, viewBox, path_1, path_2, svgPathText_1, svgPathText_2, rect} from './data';
  /* import {setRectDbEmbedding, setSVGDbEmbedding, setTransformsDbEmbedding, 
     setTranslateDbEmbedding, setTickLineDbEmbedding, setTickTextDbEmbedding, setPathDbEmbedding,
   } from './vectorstoreEmbedding'
@@ -19,6 +21,7 @@ import {
   import { DynamicTool } from "@langchain/core/tools";
   import { readFileSync, writeFileSync, unlinkSync } from 'fs';
   import { getToolCallingAgent, getDocumentNodes } from './llamaindexanalyzertool'
+  import { createObjectCsvWriter as createCsvWriter } from 'csv-writer';
 
   /*Get web elements from chroma and create xml
    1. Get the svg data from chromadb using collection and the names: svg01, svg02, up to 4 translate, and 40 for rect, path, lineX2, lineY2, line_txtx2, line_txty2
@@ -94,20 +97,137 @@ import {
     await svg_xmlDataTool.invoke("Use the tool as directed");
 }
 
+  export async function createSVGVectorStore(){
+
+  }
  
   export async function saveHtml(data: string){
         console.log("SAVE...", data);
         try {
-            await fsPromises.writeFile("C:/anthropic/chart5.html", data, {
+            await fsPromises.writeFile("C:/anthropic/chart5_1.html", data, {//C:/anthropic/chart5.html
               flag: 'w',
             });
             } catch (err) {
                 console.log(err);
             }
   }
+
+  export async function createSVGMappingFile(){
+    const path = 'C:/salesforce/repos/Claude tools/';
+    const svgFile = "svg.txt";
+    const xfile = "tickX.txt";
+    const txtTickX ="tick_text_x.txt";
+    const txtTickY ="tick_text_y.txt";
+    const yfile = "tickY.txt";
+    const rectFile = "rect.txt";
+    const pathFile = "path.txt";
+    const linePathFile = "linePath.txt";
+    const linePathFill = "linePathFill.txt";
+    const allTextFile = "allText.txt";
+    const allXPosFile = "allXPos.txt"
+    const allYPosFile = "allYPos.txt"
+    const delimiter = "```"
+    let heading: string[] = [svgHeading];
+    let svgData = await readLinesFromFile(path, svgFile);
+    await writeSVGMappingFile(heading);
+    heading = [viewBox];
+    await writeSVGMappingFile(heading);
+    await writeSVGMappingFile([delimiter]);
+    await writeSVGMappingFile(svgData);
+    await writeSVGMappingFile([delimiter]);
+    //SVG Path
+    let pathData = await readLinesFromFile(path, pathFile);
+    await writeSVGMappingFile([path_1]);
+    await writeSVGMappingFile([delimiter]);
+    await writeSVGMappingFile(pathData);
+    await writeSVGMappingFile([delimiter]);
+    //SVG Line Paths
+    let pathDataLines = await readLinesFromFiles(path, linePathFile, linePathFill);
+    await writeSVGMappingFile([path_2]);
+    await writeSVGMappingFile([delimiter]);
+    await writeSVGMappingFile(pathDataLines);
+    await writeSVGMappingFile([delimiter]);
+    //SVG tick x
+    let tickXData = await readLinesFromFiles(path, xfile, txtTickX);
+    await writeSVGMappingFile([svgPathText_1]);
+    await writeSVGMappingFile([delimiter]);
+    await writeSVGMappingFile(tickXData);
+    await writeSVGMappingFile([delimiter]);
+     //SVG tick x
+     let tickYData = await readLinesFromFiles(path, yfile, txtTickY);
+     await writeSVGMappingFile([svgPathText_2]);
+     await writeSVGMappingFile([delimiter]);
+     await writeSVGMappingFile(tickYData);
+     await writeSVGMappingFile([delimiter]);
+      //SVG rects
+    let rectData = await readLinesFromFile(path, rectFile);
+    await writeSVGMappingFile([rect]);
+    await writeSVGMappingFile([delimiter]);
+    await writeSVGMappingFile(rectData);
+    await writeSVGMappingFile([delimiter]);
+  }
+
+  async function writeSVGMappingFile(data: string[]){
+    try {
+      await fsPromises.writeFile("C:/salesforce/repos/Claude tools/svgMapping.txt", data, {
+        flag: 'a',
+      });
+      } catch (err) {
+          console.log(err);
+      }
+  }
+
+  async function readLinesFromFile(path: string, f: string){
+    let contents = await readFileSync(join(path, f), 'utf-8');
+    return contents.split(/\r?\n/);
+  }
+
+  async function readLinesFromFiles(path: string, f1: string, f2: string){
+    let contents = await readFileSync(join(path, f1), 'utf-8');
+    //<g class="tick"transform="translate(0,0)
+    let tick = contents.split(/\r?\n/);
+    let len = tick.length;
+    contents = await readFileSync(join(path, f2), 'utf-8');
+    let tickText = contents.split(/\r?\n/);
+    let full: any[] = [];
+    for(let i = 0; i < len;i++){
+        let t = tick[i]?.toString() ?? "";
+        let val = t + tickText[i]?.toString();
+      full.push(val);
+      }
+  return full;
+}
+
+  export async function saveSVGtoCSV(dat: string){
+    
+    const csvWriter = createCsvWriter({
+      path: 'out.csv',
+      header: [
+        {id: 'name', title: 'NAME'},
+        {id: 'age', title: 'AGE'}
+      ]
+    });
+    
+    const data = [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 }
+    ];
+    
+    csvWriter
+      .writeRecords(data)
+      .then(() => console.log('The CSV file was written successfully'));
+   /* try {
+        await fsPromises.writeFile("C:/anthropic/analysis.txt", data, {
+          flag: 'w',
+        });
+        } catch (err) {
+            console.log(err);
+        }*/
+}
     
   export async function saveAnalysisTool(data: string){
     console.log("SAVE...", data);
+    
    /* try {
         await fsPromises.writeFile("C:/anthropic/analysis.txt", data, {
           flag: 'w',
