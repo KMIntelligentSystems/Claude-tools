@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
 import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, 
   setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors} from './test'
+import { createSVGMappingFile } from './tools'
 
 /*
 Tool to add web elements to vector store using chromadb
@@ -59,33 +60,35 @@ export class Browser {
                     })
                   })
                 }
-            })
+            }).then(null, function (err) {
+                  console.log("SVG!", err);
+          });
   }
 
   public async getTransforms(){
         //Vector = "transform"
         const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
+  
         let commentAdded = false;
         let comment = "<!-- Translates the svg frame within the given height and width  --> ";
           globalTransform.then(value =>{
+           
             for (var v of value) {
+              
               v.getAttribute("transform").then(v1 => {
-               
+                console.log(v1)
                 if(v1){
                   setTransforms(v1).then(t => {
                   //  console.log("transform", t)
-                    this.log(t, "svg");
-                   /* if(!commentAdded){
-                      this.log(comment + t, "svg");
-                      commentAdded = true;
-                    } else{
-                      this.log(t, "svg");
-                    } */
+                //    this.log(t, "svg");
+                  
                   })
                 }
               })
             }
-        })
+        }).then(null, function (err) {
+          console.log("SVG transforms!", err);
+  });
   }
 
   public async getTickXY(){
@@ -95,8 +98,13 @@ export class Browser {
     let commentX = false;
     let commentY = false;
     tick.then(value =>{
+      if(value.length== 0){
+        this.log("**There are no ticks along the x-axis", "tick_x");
+        this.log("**There are no ticks along the y-axis", "tick_y");
+      }
       for (var v of value) {
         v.getAttribute("transform").then(v1 => {
+         
          setTranslate(v1).then(t => {
          // console.log("tickxy", t)
           //The y is 0 thus straight line
@@ -109,7 +117,7 @@ export class Browser {
          })
         })
       }
-     })
+    });
   }
 
 public async getTickLine(){
@@ -157,6 +165,10 @@ public async getTickLine(){
     let commentY = "<!-- The tick text values of the y-axis --> ";
     let commentForY = false;
     promiseLineTxt.then(value =>{
+      if(value.length== 0){
+        this.log("**There are no tick texts along the x-axis", "tick_text_x");
+        this.log("**There are no tick texts along the y-axis", "tick_text_y");
+      }
       let i = 0;
       let j = 0;
       for (var v of value) {
@@ -189,6 +201,9 @@ public async getTickLine(){
     let comment = "<!-- The rects defining the sizes of rectangles in a bar chart or if small as legend --> ";
     let commentForRect = false;
     promiseRect.then(value => {
+      if(value.length== 0){
+        this.log("**There are no rects to define legends or bars", "rects");
+      }
         for (var v of value) {
             v.getRect().then(val =>{
             setRect(val.x, val.y, val.height, val.width).then(r => {
@@ -203,6 +218,8 @@ public async getTickLine(){
           });
         })
       } 
+    }).then(null, function (err) {
+      console.log("RECTS!", err);
     });
   }
 
@@ -211,6 +228,7 @@ public async getTickLine(){
     let hasY = false;
     const promiseLineTxt = this.driver.findElements(By.xpath("//*[name()='g']//*[name()='g']//*[name()='text']"));
     promiseLineTxt.then(value =>{
+      
       for (var v of value) {
         v.getAttribute("x").then(val => {
          // console.log("legend x", val)
@@ -239,6 +257,9 @@ public async getTickLine(){
     let comment = "<!-- The paths define the x-y axes --> ";
     let commentForPath = false;
     promisePath.then(value =>{
+      if(value.length== 0){
+        this.log("**The x-y axes are not defined", "paths");
+      }
       for (var v of value) {
           v.getAttribute("d").then(val =>{
               setPaths(val).then(p => {
@@ -247,7 +268,9 @@ public async getTickLine(){
               })
           })
         }
-    })
+    }).then(null, function (err) {
+      console.log("PATHS!", err);
+    });
   }
 
   public async getLines(){
@@ -257,6 +280,9 @@ public async getTickLine(){
     let commentForPath = false;
     let commentStrokeDone = false;
     promisePath.then(value =>{
+      if(value.length== 0){
+        this.log("**There are no lines depicted for a line chart ", "chart_lines");
+      }
       for (var v of value) {
           v.getAttribute("d").then(val =>{
             console.log("line paths---", val)
@@ -270,17 +296,19 @@ public async getTickLine(){
             })
           })
         }
-    })
+    }).then(null, function (err) {
+      console.log("LINE PATHS!", err);
+    });
   }
 
   public async findElements() {
     try{
-         await this.delFiles();
+        // await this.delFiles();
          await this.getSVGElement();
          await this.getTickXY();
        //  await this.getTickLine();
          await this.getTickText();
-       //  await this.getTransforms();
+         await this.getTransforms();
          await this.getRects();
          await this.getPaths();
          await this.getLines();
@@ -307,6 +335,7 @@ public async getTickLine(){
       const txtTickXFile ="tick_text_x.txt";
       const txtTickYFile ="tick_text_y.txt";
       const linePathFillFile = "linePathFill.txt";
+      const svgMappingFile = "svgMaapping.txt";
       if(existsSync(path+svgFile)){
         unlinkSync(path+svgFile);
       }
@@ -567,6 +596,7 @@ public async getTickLine(){
 
   public async close(): Promise<void> {
     await this.driver.quit();
+   
   }
 }
 
