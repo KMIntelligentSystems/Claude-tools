@@ -12,6 +12,8 @@ import {
   import * as fs from 'fs';
   import { join } from 'path';
   import {svgHeading, viewBox, path_1, path_2, svgPathText_1, svgPathText_2, rect} from './data';
+  import { Browser } from "./browser";
+  import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
  /* import {setRectDbEmbedding, setSVGDbEmbedding, setTransformsDbEmbedding, 
     setTranslateDbEmbedding, setTickLineDbEmbedding, setTickTextDbEmbedding, setPathDbEmbedding,
   } from './vectorstoreEmbedding'
@@ -19,9 +21,11 @@ import {
     getTranslateDbEmbedding, getTickLineXDbEmbedding, getTickTextYDbEmbedding, getPathDbEmbedding
   } from './vectorstoreEmbedding'*/
   import { DynamicTool } from "@langchain/core/tools";
-  import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+  import { readFileSync, writeFileSync, unlinkSync,readdirSync } from 'fs';
   import { getToolCallingAgent, getDocumentNodes } from './llamaindexanalyzertool'
   import { createObjectCsvWriter as createCsvWriter } from 'csv-writer';
+  //import PrimeWorker from "worker-loader!
+   
 
   /*Get web elements from chroma and create xml
    1. Get the svg data from chromadb using collection and the names: svg01, svg02, up to 4 translate, and 40 for rect, path, lineX2, lineY2, line_txtx2, line_txty2
@@ -98,11 +102,35 @@ import {
 }
 
   export async function createSVGVectorStore(){
-
+    const browser = new Browser();
+    browser.get("C:/anthropic/chart5_1.html")
+    await browser.findElements().then(_ => {
+      
+    
+    });
   }
  
+  export async function loadCSVFile(){
+    let llamadocs:Document[] = [];
+    const csvPath =  "C:/Anthropic/US Labour by Industry.csv";
+    const loader = new CSVLoader(csvPath);
+    const docs = await loader.load();
+    let content = docs[0]?.pageContent as string;
+
+    let manual = new Document({ text: content, id_: "US_Labour_data", metadata: {svgId: "1111"}});
+    llamadocs.push(manual);
+
+    return llamadocs;
+  }
   export async function saveHtml(data: string){
-        console.log("SAVE...", data);
+        //console.log("SAVE...", data);
+        let html: string[] = [];
+        try{
+          html = await readLinesFromHTML(data);    
+        } catch (err) {
+          console.log(err);
+        }
+
         try {
             await fsPromises.writeFile("C:/anthropic/chart5_1.html", data, {//C:/anthropic/chart5.html
               flag: 'w',
@@ -110,6 +138,41 @@ import {
             } catch (err) {
                 console.log(err);
             }
+  }
+
+  async function readLinesFromHTML(data: string){
+    let contents = data.split(/\r?\n/);
+    let len = contents.length;
+    let full: any[] = [];
+    let start = false;
+    let end = false;
+    for(let i = 0; i < len;i++){
+        let line = contents[i]?.toString() ?? "";
+        if(!end){
+          if(line.includes("<html>")){
+            start = true;
+          }
+          if(start){
+            line = line.replace("\\","");
+            full.push(line);
+          }
+          console.log(line)
+        }
+        if(line.includes("</html>")){
+          end = true;
+        }
+      }
+      return full;
+  }
+
+  export async function checkSVGFilesExist(){
+    const directoryPath = './';
+    while(true){
+      const files = fs.readdirSync(directoryPath);
+      if(files.includes("svg.txt")){
+        break;
+      }
+    }
   }
 
   export async function createSVGMappingFile(){
