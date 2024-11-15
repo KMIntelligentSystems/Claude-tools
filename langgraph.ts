@@ -8,25 +8,24 @@ import { StateGraph, StateGraphArgs } from "@langchain/langgraph";
 import { MemorySaver, Annotation } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { /*OpenAI,*/  ChatOpenAI } from "@langchain/openai";
-import { getCSVData} from "./lamaindex";
+import { loadCSVFile, persistCSVData} from "./lamaindex";
 //import { Anthropic, FunctionTool, AnthropicAgent } from "llamaindex";
 import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
 import { Calculator } from '@langchain/community/tools/calculator';
 import { JsonOutputParser, StringOutputParser } from "@langchain/core/output_parsers";
 import { Browser } from "./browser";
 import { ChromaClient,  OpenAIEmbeddingFunction } from "chromadb";
-import {  saveHtml, askSVGToolAgent,saveAnalysisTool} from "./tools";
+import {  saveHtml, createSVGMappingFile,saveAnalysisTool, createSVGVectorStore, checkSVGFilesExist } from "./tools";
 import { ChatPromptValue } from "@langchain/core/prompt_values";
 import type { ChatGeneration} from "@langchain/core/outputs";
 import { readFileSync, writeFileSync} from 'fs';
-import { getToolCallingAgent, getDocumentNodes, loadCSVFile } from './llamaindexanalyzertool'
+import { getToolCallingAgent, getDocumentNodes/*, loadCSVFile*/ } from './llamaindexanalyzertool'
 import {Document, VectorStoreIndex,  OpenAI,Settings, OpenAIEmbedding,} from "llamaindex";
 import {testGetfromLlamaindex} from './vectorstoreEmbedding'
 import { ChromaAgent } from "./chromaagent";
 
 import "dotenv/config";
 import { ChatOllama } from "@langchain/ollama";
-
 
 
 //from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate, PromptTemplate, SystemMessagePromptTemplate
@@ -52,15 +51,28 @@ const saveHtmlTool =  new DynamicTool({
 	  return res;
   }
 });
-
-const saveAnalysis =  new DynamicTool({
+/***********************************
+ * Creates the individual custom SVG elements in individual files
+ */
+const createSVGVectors =  new DynamicTool({
   name: "File_Saver",
   description:
-    "call this to save the findings of the analysis of data",
-  func: async ( value: string) => {
-    console.log("HTML...",value);
-	  const res = await saveAnalysisTool(value);
+    "call this to create vectors of the html rendered SVG",
+  func: async () => {
+	  const res = await createSVGVectorStore();
 	  return res;
+  }
+});
+/***************************************
+ * amalgamates the individual SVG  files to 
+ * common mapping file: svgMapping.txt
+ */
+const createSVGMapping =  new DynamicTool({
+  name: "File_Saver",
+  description:
+    "call this to map custom SVG data to common mapping file for use by Analyzer",
+  func: async () => {
+	  await createSVGMappingFile();
   }
 });
 
@@ -123,16 +135,17 @@ const evaluatorPrompt = new PromptTemplate({
 });
 
 const coderTemplate = `<|begin_of_text|><|start_header_id|>coder<|end_header_id|>Your role is Coder. 
-As coder you are proficient at Scalar Vector Graphics (SVG). You will receive a customized version of an SVG rendering of the coding requirements.
-These requirements are in {requirement}. The customized svg elements are another agent's best understanding of the rendered SVG code.
-You will examine this svg rendering to try to create runnable svg code.  Your input is in {previousAnswers}. 
-This input contains previous interactions with the agent. From this input extract out the svg elements. Then as best you can reconstruct runnable svg code.
-Save the code under the key "svg_elements". Finally, make a report on your findings concerning how well the requirements seem to be rrendered. 
-under the key: "findings".
-
+As coder you are proficient at d3 js coding using typescript. You have two tasks:
+1. Look closely at the requirements for the code. As you will see the requirements require specific data inputs. 
+These inputs are available from an external tool. The requirements can be found in {requirement}.\n
+The requirements can be found in {requirement}.The data provided in the tool's 'answer' will be in CSV format. 
+This data will be the input for your d3 js code. The csv data is in {data}. Understand the data and the requirements.\n
+2. Create the d3 js code following the requirements and the format of the CSV data from task 1. 
+Use a mock csv file called 'data.csv'.\n Make sure the code can be run in a browser.
+It should be pure html. Wrap your code in XML tags: '<html></html>'
   `
 const coderPrompt = new PromptTemplate({
-      inputVariables: [  "requirement", "userManual", "previousAnswers"],
+      inputVariables: [  "requirement", "data"],
       template: coderTemplate,
 });
 
@@ -161,19 +174,26 @@ const fixerPrompt = new PromptTemplate({
         template: fixerTemplate,
 });
  
-const retrieverTemplate = `<|begin_of_text|><|start_header_id|>retriever<|end_header_id|> Your role as Retriever is to extract information from the provided requirement in {requirement} in order to provide a prompt to another agent whose role is to extract the requested information from a data store. Make the command to fetch data as precise as possible without adding commentary or explanation. Wrap the command in XML tags: '<query></query>'. If you receive the data ensure it is in a CSV format suitable for JavaScript`
+const retrieverTemplate = `<|begin_of_text|><|start_header_id|>retriever<|end_header_id|>
+ Your role as Retriever is to extract information from the provided requirement in {requirement} 
+ in order to provide a prompt to another agent whose role is to extract the requested information 
+ from a data store. Make the command to fetch data as precise as possible without adding commentary or explanation. 
+ Wrap the command in XML tags: '<query></query>'. If you receive the data ensure it is in a CSV format suitable 
+ for JavaScript`
 const retrieverPrompt = new PromptTemplate({
         inputVariables: ["requirement"],
         template: retrieverTemplate,
 });
-
+/********************************
+ * Retriever to load csv, place in index, query index
+ */
 const csvDataTool =  new DynamicTool({
   name: "CSV_Data_Retrieval",
   description:
     "call this to to get the filtered csv data to be used as input data by the coding agent",
-  func: async (_input: String) => {
-    console.log("INPUT...",_input);
-	  const res = await getCSVData(_input);
+  func: async (input: String) => {
+    console.log("INPUT...",input);
+	  const res = await loadCSVFile(input);//getCSVData
 	  return res;
   }
 });
@@ -332,6 +352,15 @@ const retriever = new ChatAnthropic({
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY,
 });//.bindTools([csvDataTool]);
+
+const retriever__ = new ChatOllama({
+  model: "llama3",
+  temperature: 0,
+  // other params...
+});
+
+const retriever_ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+
 //not sure if this is needed
 const outputParser = new StringOutputParser();
 const coderOutputParser = new StringOutputParser();
@@ -371,21 +400,21 @@ const evaluator_ = new ChatOllama({
 const evaluator = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const evaluatorChain = evaluatorPrompt.pipe(evaluator).pipe(outputParser);
 
-const coder_ = new ChatAnthropic({
+const coder__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
-});//.bindTools([csvDataTool]);
+})//.bindTools([csvDataTool]);
 
-const coder__ = new ChatOllama({
+const coder_ = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
-});
+});//.bindTools([csvDataTool]);
 
 const coder = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
-const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser);
-
+//const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser);
+const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool).pipe(createSVGVectors);
 const dataAnalyzer_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
@@ -526,6 +555,12 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
           console.log("req", infoAndRequest)
           console.log("res", res)
  */
+/*****************************************
+ * The tool createSVGVectors calls createSVGVectorStore() in tool which calls Browser to get elements
+ * 1. Browser findElements creates individual txt files
+ * 2. Background checker creates svgMapping from txt files and then deletes them
+ * 3. GetDocumentNodes reads the svgMapping fileand returns Document for vector store
+ */
 async function toolAgent(state: typeof StateAnnotation.State) {
   Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
   const embedModel = new OpenAIEmbedding();
@@ -563,8 +598,11 @@ async function toolAgent(state: typeof StateAnnotation.State) {
 
 async function codeAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...CODER")
+ // const index: VectorStoreIndex = await persistCSVData();
+  //index.asQueryEngine
   //coderChain.
-  const agentResponse = await coderChain.invoke({ requirement: state.requirement, userManual: state.userManual, previousAnswers: state.previousAnswers});
+  const agentResponse = await coderChain.invoke({ requirement: state.requirement, data: state.data});
+//await createSVGMappingFile();
   console.log("Coder>>end", agentResponse)
   //return "__end__";
  return state;
@@ -601,27 +639,26 @@ async function evalAgent(state: typeof StateAnnotation.State) {
 async function retrieverAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...Ret")
   
-  const agentResponse:AIMessage = await retrieverChain.invoke({ requirement: state.requirement});
-  //const agentResponse = await retrieverPrompt.invoke({ requirement: state.requirement});
-  console.log("res...RET",agentResponse.content);
- // const response = await csvDataTool.invoke(agentResponse.content);
-  return ({data: agentResponse});
+  const agentResponse = await retrieverChain.invoke({ requirement: state.requirement});
+  console.log("IN RETRIVER...", agentResponse)
+  state.data = agentResponse;
+  return state;
 }
 
 // Define a new graph
 const workflow = new StateGraph(StateAnnotation)
   .addNode("coder", codeAgent)
-  //.addNode("retriever", retrieverAgent)
-  //.addNode("retriever", retrieverAgent)
+  .addNode("retriever", retrieverAgent)
   .addNode("evaluator", evalAgent)
   .addNode("dataAnalyzer",dataAnalyzerAgent)
   .addNode("analyzer",analyzerAgent)
   .addNode("tools", toolAgent)
-  .addEdge("__start__", "analyzer")
- // .addEdge("__start__", "retriever")
- // .addEdge(   "evaluator", "analyzer")
-.addEdge(  "analyzer" , "tools")
-.addEdge( "tools", "evaluator")
+ // .addEdge("__start__", "analyzer")
+  .addEdge("__start__", "retriever")
+  .addEdge("retriever", "coder")
+  .addEdge("coder", "analyzer")
+  .addEdge(  "analyzer" , "tools")
+  .addEdge( "tools", "evaluator")
  // .addEdge("retriever", "coder")
   .addConditionalEdges("evaluator", shouldContinue);
 
@@ -648,11 +685,12 @@ let data = "";
 // Use the Runnable
 export async function main() {
   //Get web elements and put in llamaindex documents
-/*  const browser = new Browser();
-  browser.get("C:/anthropic/lines.html")
+  /*const browser = new Browser();
+  browser.get("C:/anthropic/chart5_1.html")
   await browser.findElements().then(_ => {
-    readFile();
+    //createSVGMappingFile();
   });*/
+//  await createSVGMappingFile();
  // await testGetfromLlamaindex();
  // await createToolCallingAgent() works perfectly;
  /*const tools =  await createToolCallingAgent();
@@ -679,7 +717,7 @@ const results = await client.querySVGVectors(`how many categories are there`, "s
 Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46449,44886,43869,42319,40592,39199,38216,37205,36297,34591` 
  //const data = `75,104,369,300,92,64,265,35,287,69,52,23,287,87,114,114,98,137,87,90,63,69,80,113,58,115,30,35,92,460,74,72,63,115,60,75,31,277,52,218,132,316,127,87,449,46,345,48,184,149,345,92,749,93,9502,138,48,87,103,32,93,57,109,127,149,78,162,173,87,184,288,576,460,150,127,92,84,115,218,404,52,85,66,52,201,287,69,114,379,115,161,91,231,230,822,115,80,58,207,171,156,91,138,104,691,74,87,63,333,125,196,57,92,127,136,129,66,80,115,87,57,172,184,230,153,162,104,165,1036,69,196,38,92,162,806,105,69,29,633,102,87,345,58,56,35,49,92,156,58,104,167,115,87,800,87,322,65,149,34,69,69,391,58,58,207,61,253,109,69,57,56,114,58,80,149,287,57,138,92,87,103,230,57,724,50,92,79,92,45,196,29,69,253,173,438,173,218,115,58,92,115,230,87,287,53,80,92,89,4607,173,96,80,115,104,138,92,48,98,231,127,114,91,115,80,403,253,75,63,69,92,171,58,104,47,53,80,213,1498,104,125,127,58,432,90,52,69,173,75,69,139,127,45,87,138,92,58,208,52,149,60,89,119,287,74,138,171,391,104,35,92,656,90,92,103,69,345,115,87,107,93,92,247,172,58,34,99,104,57,80,345,461,330,80,75,94,104,218,58,115,79,108,184,115,60,101,40,92,102,3283,126,92,225,107,288,63,62,80,69,115,46,102,60,40,345,63,114,74,80,144,56,127,98,104,71,98,104,92,208,287,93,230,196,290,164,91,115,40,92,127,231,104,58,610,225,183,98,81,115,97,438,111,173,346,80,172,126,126,317,59,52,197,80,58,577,127,214,71,32,127,115,64,149,1035,80,1612,98,92,58,278,45,69,215,69,92,172,75,58,101,80,137,805,515,149,92,93,125,63,863,231,115,70,115,80,127,98,127,113,69,61,645,23,69,58,104,196,137,93,518,145,58,103,69,123,53,173,230,63,403,93,115,87,74,90,1036,93,160,201,131,460,287,61,98,64,46,138,149,74,56,80,92,67,133,403,160,138,63,69,69,331,92,368,103,92,180,114,58,115,144,345,172,98,76,67,68,80,345,490,62,190,46,91,231,93,79,83,115,58,139,162`
 
- const inputs = {"data": data, "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "", "userManual": manual}
+ const inputs = {"data": "", "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "", "userManual": manual}
  // console.log(inputs)
   var config =  { "configurable": { "thread_id": "42" } }
  const finalState = await app.invoke(
