@@ -15,15 +15,14 @@ import {
   OpenAI,
   VectorIndexRetriever,
   RetrieverQueryEngine,
+  StorageContext,
 } from "llamaindex";
 
 import { DynamicTool, DynamicStructuredTool } from "@langchain/core/tools";
 import { Document } from "llamaindex";
 import { requirement } from './langgraph'
 import { PapaCSVReader } from "llamaindex/readers/CSVReader";
-//import { ChromaClient, OpenAIEmbeddingFunction} from "chromadb";
-
-//import { OpenAI } from "openai";
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 
 
 Settings.callbackManager.on("llm-tool-call", (event:any) => {
@@ -64,66 +63,55 @@ const agent = new AnthropicAgent({
   ],
 });
 
-//export async function getSVG_XMLData() went to tools
-/*export async function getSVG_XMLData_() {
-  const collectionName = "svg_xml_elements";
-  const client:ChromaClient = new ChromaClient();
-  const collection:any = await client.getOrCreateCollection({
-        name: collectionName,
-  });
-  const res = await collection.get({
-    ids: ["svg_xml_elements"],
-  });
- // console.log(res)
-  const chromaVS = new ChromaVectorStore({ collectionName });
-  const data = chromaVS.getCollection();
-  data.then(v => {
-    //console.log(v.get());
-  })
-  
- 
-}*/
-export async function getCSVData(input: String) {
-  console.log("START...", input)
-  const reader = new PapaCSVReader();
+
+export async function persistCSVData(){
   const path = "C:/Anthropic/US Labour by Industry.csv";
+  const storageContext = await storageContextFromDefaults({
+    persistDir: "./storage",
+  });
+  const reader = new PapaCSVReader();
   const documents = await reader.loadData(path);
-
-  // Split text and create embeddings. Store them in a VectorStoreIndex
-  const index = await VectorStoreIndex.fromDocuments(documents);
-
-  const csvPrompt = new PromptTemplate({
-    templateVars: ["query", "context"],
-    template: `The following CSV file is loaded from ${path}
-\`\`\`csv
-{context}
-\`\`\`
-Given the CSV file, use the information provided in {query} to create a command that can be used to fetch the data. Just provide correctly formatted csv output.
-`,
+ // const document = new Document({ text: "Test Text" });
+  const index = await VectorStoreIndex.fromDocuments(documents, {
+    storageContext,
   });
-  const responseSynthesizer = getResponseSynthesizer("compact", {
-    textQATemplate: csvPrompt,
-  });
-
-  const queryEngine = index.asQueryEngine({ responseSynthesizer });
-  
-
-  // Query the index
-  const response = await queryEngine.query({
-    query: String(input),
-  });
-
-  /*const queryEngineTool = 
-    new QueryEngineTool({
-      queryEngine: index.asQueryEngine({ responseSynthesizer }),
-      metadata: {
-        name: "Data_Provider",
-        description: "A tool to provide csv input data",
-      },
-    });*/
-  
-  return String(response?.message.content);
+  return index;
 }
+
+
+export async function loadCSVFile(input: any){
+  let llamadocs:Document[] = [];
+  const path = "C:/Anthropic/US Labour by Industry.csv";
+
+    const reader = new PapaCSVReader();
+    const documents = await reader.loadData(path);
+   // Split text and create embeddings. Store them in a VectorStoreIndex
+   const index = await VectorStoreIndex.fromDocuments(documents);
+   const csvPrompt = new PromptTemplate({
+     templateVars: ["query", "context"],
+     template: `The following CSV file is loaded from ${path}
+ \`\`\`csv
+ {context}
+ \`\`\`
+ Given the CSV file, use the information provided in {query} to create a command that can be used to fetch the data. 
+ Just provide correctly formatted csv output.
+ `,
+   });
+   const responseSynthesizer = getResponseSynthesizer("compact", {
+     textQATemplate: csvPrompt,
+   });
+ 
+   const queryEngine = index.asQueryEngine({ responseSynthesizer });
+   
+ 
+   // Query the index
+   const response = await queryEngine.query({
+     query: String(input),
+   });
+
+   
+   return String(response?.message.content);
+ }
 
 /*const embeddingFunction = new OpenAIEmbeddingFunction({
   openai_api_key: process.env["OPENAI_API_KEY"] as string,
