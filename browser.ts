@@ -1,5 +1,9 @@
-import 'chromedriver';;
-import { Options} from 'selenium-webdriver';
+import 'chromedriver';
+//import chrome from 'selenium-webdriver/chrome';
+const Chrome = require('selenium-webdriver/chrome');
+//const { Browser, Builder } = require("selenium-webdriver");
+
+import { Options,ProxyConfig} from 'selenium-webdriver';
 import { Builder,/*Browser,*/ ThenableWebDriver, WebElement, By, WebElementPromise} from 'selenium-webdriver';
 import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
@@ -29,8 +33,13 @@ public  async findElement(el: string): Promise<WebElement[]> where el eg is  con
 export type WaitCondition = (browser: Browser) => Promise<boolean>;
 export class Browser {
   private driver: ThenableWebDriver;
+   options = new Chrome.Options();
+  
   public constructor() {
-    this.driver = new Builder().forBrowser('chrome').build();
+    //--disable-web-security
+    this.options.addArguments('--disable-web-security');
+    this.driver = new Builder().forBrowser('chrome').setChromeOptions(this.options).build();
+    
   }
 
   public setOptions(){
@@ -55,7 +64,7 @@ export class Browser {
                  v.getAttribute("height").then(h => {
                     v.getAttribute("width").then(w => {
                       let val = setSVG(h,w);
-                     // console.log("svg element", val);
+                     console.log("svg element", val);
                       this.log(val, "svg");
                     })
                   })
@@ -273,6 +282,24 @@ public async getTickLine(){
     });
   }
 
+  public async getScriptErrors(){
+   /* var errorStrings = new List<string> 
+    { 
+        "SyntaxError", 
+        "EvalError", 
+        "ReferenceError", 
+        "RangeError", 
+        "TypeError", 
+        "URIError" 
+    };*/
+
+    var jsErrors = this.driver.manage().logs();//.GetLog(LogType.Browser).Where(x => errorStrings.Any(e => x.Message.Contains(e)));
+    console.log("js errore", jsErrors)
+    var res = await jsErrors.get( "browser");
+    res.forEach(e => {
+      console.log("ERROR...", e.message)
+    })
+  }
   public async getLines(){
     const promisePath = this.driver.findElements(By.xpath("//*[name()='path'and @class='line']"));
     let comment = "<!-- The paths define the line chart --> ";
@@ -282,6 +309,7 @@ public async getTickLine(){
     promisePath.then(value =>{
       if(value.length== 0){
         this.log("**There are no lines depicted for a line chart ", "chart_lines");
+        this.log("**There are no lines depicted for a line chart nd therefore no color strokes", "chart_lines_fill");
       }
       for (var v of value) {
           v.getAttribute("d").then(val =>{
@@ -292,6 +320,7 @@ public async getTickLine(){
           })
           v.getAttribute("stroke").then(val =>{
             setLinePathColors(val).then(c => {
+              console.log("stroke", c)
               this.log(c, "chart_lines_fill");
             })
           })
@@ -300,10 +329,33 @@ public async getTickLine(){
       console.log("LINE PATHS!", err);
     });
   }
+/*******************
+ * jupyter-lab
+ * public void TestCleanup()
+{
+    var errorStrings = new List<string> 
+    { 
+        "SyntaxError", 
+        "EvalError", 
+        "ReferenceError", 
+        "RangeError", 
+        "TypeError", 
+        "URIError" 
+    };
 
+    var jsErrors = Driver.Manage().Logs.GetLog(LogType.Browser).Where(x => errorStrings.Any(e => x.Message.Contains(e)));
+
+    if (jsErrors.Any())
+    {
+        Assert.Fail("JavaScript error(s):" + Environment.NewLine + jsErrors.Aggregate("", (s, entry) => s + entry.Message + Environment.NewLine));
+    }
+}
+ * 
+ */
   public async findElements() {
     try{
         // await this.delFiles();
+       
          await this.getSVGElement();
          await this.getTickXY();
        //  await this.getTickLine();
@@ -313,6 +365,7 @@ public async getTickLine(){
          await this.getPaths();
          await this.getLines();
          await this.getLegendText();
+         await this.getScriptErrors();
     } catch(Exception){
         const  svg_elements = "<svg>No svg elements were found, indicating a syntax error<svg>";
        
