@@ -21,8 +21,9 @@ namespace HealthDeptLOV
             // CreateEergyInstance();
 
 
-           // delSVGFiles();
+            delSVGMappingFile();
             createSVGMappingFile();
+            delSVGFiles();
         }
         static void createSVGMappingFile()
         {
@@ -40,6 +41,7 @@ namespace HealthDeptLOV
             string allTextFile = "allText.txt";
             string allXPosFile = "allXPos.txt";
             string allYPosFile = "allYPos.txt";
+            string errorFile = "errors.txt";
             string delimiter = "```";
             string svgHeading = @"
 The mappings of SVG elements are mapped to the four categories below\n
@@ -68,12 +70,15 @@ The text of interest is for the x-y axes labelling.
 ";
 
             string svgPathText_2 = @"
-3.1 The text on the y-axis with `tick` lines horizontally aligned on the y-axis:\n
+3.2 The text on the y-axis with `tick` lines horizontally aligned on the y-axis:\n
 ";
             string rect = @"
 #4. SVG rect.
 In this case the rects form a legend at the bottom of the graph.They have text and color values:\n
 ";
+
+            string error = @"
+#5. Errors.";
 
             if (checkSVGFilesExist())
             {
@@ -141,8 +146,40 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 }
                 stringList.Add(delimiter);
                 writeSVGMappingFile(stringList.ToArray());
+                //Errors
+                stringList.Clear();
+                stringList.Add(error);
+                string[] errorData = readLinesFromFile(path, errorFile);
+                if(errorData.Length > 0)
+                {
+                    stringList.Add(delimiter);
+                    for (int i = 0; i < errorData.Length; i++)
+                    {
+                        stringList.Add(errorData[i]);
+                    }
+                    stringList.Add(delimiter);
+                    writeSVGMappingFile(stringList.ToArray());
+                }
             }
         }
+
+        static void delSVGMappingFile()
+        {
+            try
+            {
+                string path = "C:/salesforce/repos/Claude tools/";
+                string svgFile = "svgMapping.txt";
+                if (System.IO.File.Exists(path + svgFile))
+                {
+                    System.IO.File.Delete(path + svgFile);
+                }
+            }
+            catch (Exception exp)
+            {
+                Console.WriteLine(exp.Message);
+
+            }
+      }
 
         static void delSVGFiles()
         {
@@ -161,14 +198,12 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 string txtTickXFile = "tick_text_x.txt";
                 string txtTickYFile = "tick_text_y.txt";
                 string linePathFillFile = "linePathFill.txt";
-                string svgMapping = "svgMapping.txt";
-                if (System.IO.File.Exists(path + svgMapping))
-                {
-                    System.IO.File.Delete(path + svgMapping);
-                }
+                string errorFile = "errors.txt";
+                Console.WriteLine("Here DEL......");
                 if (System.IO.File.Exists(path + svgFile))
                 {
                     System.IO.File.Delete(path + svgFile);
+                    Console.WriteLine("Here DEL......SVG...");
                 }
                 if (System.IO.File.Exists(path + txtTickXFile))
                 {
@@ -214,6 +249,10 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 {
                     System.IO.File.Delete(path + allYPosFile);
                 }
+                if (System.IO.File.Exists(path + errorFile))
+                {
+                    System.IO.File.Delete(path + errorFile);
+                }
             }
             catch (Exception exp)
             {
@@ -245,6 +284,14 @@ In this case the rects form a legend at the bottom of the graph.They have text a
         {
             // Set a variable to the Documents path.
             string docPath = @"C:\salesforce\repos\Claude tools\svgMapping.txt";
+            if (!System.IO.File.Exists(docPath))
+            {
+                // Create a file to write to.
+                using (StreamWriter sw = System.IO.File.CreateText(docPath))
+                {
+                    sw.WriteLine("This file contains information about the SVG elements of the d3 js graph");
+                }
+            }
             using (StreamWriter writer = System.IO.File.AppendText(docPath))
             {
                 for (int i = 0; i < lines.Length; i++)
@@ -296,12 +343,22 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                     }
                 }
             }
-            string[] stringArray1 = stringList1.ToArray();
             string[] stringArray = stringList.ToArray();
-            List<string> stringList3 = new List<string> { "" };
-            for (int i = 0; i < stringArray.Length; i++)
+            string[] stringArray1 = stringList1.ToArray();
+            int len = 0;
+            int len1 = stringArray1.Length;
+            int len2 = stringArray.Length;
+            if(len1 >= len2)
             {
-                string val = stringArray[i];
+                len = len2;
+            }else if(len1 < len2)
+            {
+                len = len1;
+            }
+            List<string> stringList3 = new List<string> { "" };
+            for (int i = 0; i < len; i++)
+            {
+                string val = stringArray[i];//has "" then **error
                 string val1 = stringArray1[i];
                 stringList3.Add(val + val1);
             }
