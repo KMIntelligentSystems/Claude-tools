@@ -109,6 +109,7 @@ import {
     
     });
   }
+  
  
   export async function loadCSVFile(){
     let llamadocs:Document[] = [];
@@ -138,6 +139,11 @@ import {
             } catch (err) {
                 console.log(err);
             }
+  }
+
+  export async function getHtml(){
+    let contents = await readFileSync(join("C:/anthropic/", "chart5_1.html"), 'utf-8');
+    return contents;
   }
 
   async function readLinesFromHTML(data: string){
