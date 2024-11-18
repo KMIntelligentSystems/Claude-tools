@@ -42,7 +42,9 @@ import { ChatOllama } from "@langchain/ollama";
 const ANTHROPIC_API_KEY=""
 
 
-// Chain your prompt and model together
+/*************************************
+ * Save the real html to a directory
+ */
 const saveHtmlTool =  new DynamicTool({
   name: "File_Saver",
   description:
@@ -53,7 +55,10 @@ const saveHtmlTool =  new DynamicTool({
 	  return res;
   }
 });
-
+/***************************************
+ * Piped tool to get the html data after it has been saved 
+ * by saveHtml()
+ */
 const getHtmlTool =  new DynamicTool({
   name: "File_Saver",
   description:
@@ -62,6 +67,30 @@ const getHtmlTool =  new DynamicTool({
 	  const res = await getHtml();
 	  return res;
   }
+});
+/***************************************
+ * Piped tool to get specific x-y axes values from the csv loaded 
+ * by retriever
+ */
+const getXYAxesValues =  new DynamicTool({
+  name: "GRAPH_X_Y_Values",
+  description:
+    "call this to provide the values for the x-y axes of a graph ",
+  func: async (request) => {
+      let doc = new Document({ text: request, id_: "x_y_axes_values", metadata: {dataId: "111"}});
+      const index = await VectorStoreIndex.fromDocuments([doc]);
+        const retriever = index.asRetriever({
+            similarityTopK: 10,
+          });
+        const queryEngine = index.asQueryEngine();
+        const res = await queryEngine.query({
+          query: request,
+        });
+        let result = res.message.content as string;
+       console.log("RESULT", result)
+        return result;
+    }
+  
 });
 /***********************************
  * Creates the individual custom SVG elements in individual files
@@ -101,7 +130,8 @@ Example:
         }) */
 
 const svgAnalyzerTemplate = `<|begin_of_text|><|start_header_id|>analyser<|end_header_id|>
-Your role is Analyzer. As Analyzer you will examine the requirements for the d3 js code. The requirements will be found in {requirement}. 
+Your role is Analyzer. As Analyzer you will examine the requirements for the d3 js code. The requirements will be found 
+in {requirement}. 
 You will articulate what the data representation should show based on the requirements. 
 You must be clear as to what elements and values should be in the graph.\n
 You will formulate questions about the rendering of the d3 js code. You will ask another agent which can provide the svg elements 
@@ -110,16 +140,12 @@ Ensure at the very least the following:
 1. The graphical display of the data as stipulated in the requirements;\n
 2. The x-axis labels are displayed;\n
 3. The y-axis labels are displayed;\n
-It may be the case that the elements are not displayed. In this case, stop asking questions there are syntax errors in the code. 
-You may find 'error' statements in {answer}. Ensure that your understanding of the error is included in your questions.\n
-Ask your question using the key: "toolQuestion" and place your question there.\n
-Another agent, Evaluator may ask supplementary questions. Look at these questions and phrase them with your understanding of the requiremente.
-If there are supplementary questions you will find them in {toolQuestion}
-\n\n
+It may be the case that the elements are not displayed. In this case, stop asking questions there are syntax errors in the code.\n
+Ask your question using the key: "toolQuestion" and place your question there.
 `
 
 const svgAnalyzerPrompt = new PromptTemplate({
-      inputVariables: ["requirement", "answer", "previousAnswers", "previousQuestions","stage", "toolQuestion"], 
+      inputVariables: ["requirement"], 
       template: svgAnalyzerTemplate,
 });
 
@@ -150,38 +176,34 @@ const coderTemplate = `<|begin_of_text|><|start_header_id|>coder<|end_header_id|
 As coder you are proficient at d3 js coding using typescript. You have three tasks:
 1. Look closely at the requirements for the code. As you will see the requirements require specific data inputs. 
 These inputs are available from an external tool. The requirements can be found in {requirement}.\n
-The requirements can be found in {requirement}.
-This data will be the input for your d3 js code. The csv data is in {data}. Understand the data and the requirements.\n
+The requirements can be found in {requirement}.  Analyze a report about the data to be displayed in order to
+determine the values to be assigned in the graph, especially, the x-y axes values. This information is in {dataFindings}.\n
 2. Create the d3 js code following the requirements and the format of the CSV data from task 1. 
-Use a mock csv file called 'data.csv'.\n Make sure the code can be run in a browser.
+Use a csv file called 'data.csv' and use the d3 js function: 'd3.csv("data.csv)'. Make sure the code can be run in a browser.
 It should be pure html. Wrap your code in XML tags: '<html></html>'\n
 Just return the html code without explanation or added commentary. 
 The code will be run in the browser. So just the code is required.\n
 3. You may receive a previous version of your code. In that case you will also receive a report about problems with your code.
-If there are problems, you will find your code in {html}. You will find the report about your previous code in {answer}.
-**HINT**
-Remember when using 'd3.csv("data.csv")', the 'd3.csv' function adheres to standard RFC4180. 
-This standard states that for the comma-separated data, the first line comprises the 'headings' while 
-the remaining comma-separated lines comprise the 'data'. In the case of 'd3', the headings can be referenced 
-as 'columns' - so 'data.columns' is the array of headings. The 'data' lines can be accessed directly (eg with a 'for-loop').\n\n
+If there are problems, you will find your code in {html}. You will find the report about your previous code in {answer}. 
+Clearly identify the problem and fix it. It should be pure html. Wrap your code in XML tags: '<html></html>'\n
 
   `
 const coderPrompt = new PromptTemplate({
-      inputVariables: [  "requirement", "data", "answer", "html"],
+      inputVariables: [  "requirement", "dataFindings", "answer", "html"],
       template: coderTemplate,
 });
 
 const dataAnalyzerTemplate = `<|begin_of_text|><|start_header_id|>datanalyzer<|end_header_id|>
-As a DataAnalyzer, your task is to verify that the data provided to be graphed is complete. You will find the input data in {data}. 
-Another agent has generated a report on what is displayed in the graph. This report will provide information about what labels are displayed on the 
-x-y axes of the graph and what is displayed in the body of the graph. What is displayed in the body of the graph will depend on the type of graph such as bar chart, 
-bubble chart, pie chart, or line chart. You will find this information in {requirement}. You will find the agent's report about what seems to be displayed 
-in the graph in {answer}. Look at the requirements, the data input and the report to determine how well the graph captures the data. 
-Provide a report with key: "dataReport".
+As a DataAnalyzer, your task is to ask questions concerning the data to be displayed in a graph with x-y axes. The basis of
+your question will be the stated requirements for the graphical representation of the data.
+You will find the requirements in {requirement}. Look at the requirements. The data is in csv format, the column headings
+are in the top line of the csv data. The data is in {data}. Determine the values for the x and y axes by asking questions to get the values 
+for the graph's axes. Ask your questions in terms of the data such as what are the range values for axes? 
+Place your findings in a report with key: "data_findings".\n
 `
 
 const dataAnalyzerPrompt = new PromptTemplate({
-      inputVariables: [  "requirement", "answer", "data"],
+      inputVariables: [  "requirement", "data"],
       template: dataAnalyzerTemplate,
 });
 
@@ -204,7 +226,7 @@ const retrieverTemplate = `<|begin_of_text|><|start_header_id|>retriever<|end_he
  in order to provide a prompt to another agent whose role is to extract the requested information 
  from a data store. Make the command to fetch data as precise as possible without adding commentary or explanation. 
  Wrap the command in XML tags: '<query></query>'. If you receive the data ensure it is in a CSV format suitable 
- for JavaScript`
+ for JavaScript. Provide the data with key: "csvData"`
 const retrieverPrompt = new PromptTemplate({
         inputVariables: ["requirement"],
         template: retrieverTemplate,
@@ -219,6 +241,7 @@ const csvDataTool =  new DynamicTool({
   func: async (input: String) => {
     console.log("INPUT...",input);
 	  const res = await loadCSVFile(input);//getCSVData
+    console.log("OUTPUT...",res);
 	  return res;
   }
 });
@@ -277,7 +300,7 @@ const retriever =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_A
 const outputParser = new StringOutputParser();
 const coderOutputParser = new StringOutputParser();
 const jsonOutputParser = new JsonOutputParser();
-const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool);
+const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool).pipe(outputParser);
 
 const analyzer__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
@@ -369,15 +392,13 @@ const StateAnnotation = Annotation.Root({
   requirement: Annotation<string>,
   recommendation: Annotation<string>,
   html: Annotation<string>,
-  svgElements:  Annotation<string>,
   toolQuestion:  Annotation<string>,
   answer: Annotation<string>,
   previousAnswers: Annotation<string[]>,
   previousQuestions: Annotation<string[]>,
   score:  Annotation<string>,
   stage: Annotation<string>,
-  userManual:  Annotation<string>,
-  svgMapping:  Annotation<string>,
+  dataFindings:  Annotation<string>,
 });
 
 // Define the function that determines whether to continue or not
@@ -392,8 +413,8 @@ async function shouldContinue(state: typeof StateAnnotation.State) {
  //   }
    } else {
     console.log("endddddddddddd", state)
-   // return "__end__";
-   return "dataAnalyzer"
+    return "__end__";
+  // return "dataAnalyzer"
    }
  //   return "__end__";
 }
@@ -414,7 +435,7 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...Anal")
   console.log("state",state)
 
-   const agentResponse = await analyzerChain.invoke({requirement: state.requirement, answer: state.answer, previousAnswers: state.previousAnswers, previousQuestions: state.previousQuestions, stage: state.stage, toolQuestion:state.toolQuestion});
+   const agentResponse = await analyzerChain.invoke({requirement: state.requirement});
    state["toolQuestion"] = agentResponse;
   if(agentResponse.includes("toolQuestion")){
     console.log("TOOOOOOOOOOOOOOOOOOL")
@@ -451,7 +472,7 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
   
   state["toolQuestion"] = agentResponse["toolQuestion"];
   let val = "QUESTION: " + state["toolQuestion"] + '\n' + "ANSWER: " + state["answer"] + '\n';
-  writeFileSync('C:/salesforce/repos/Claude tools/findings.txt', val+"\n", {
+  writeFileSync('C:/salesforce/repos/Claude tools/findings.t', val+"\n", {
     flag: 'a',
   });*/
   
@@ -505,7 +526,7 @@ async function fixerAgent(state: typeof StateAnnotation.State) {
 
 async function codeAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...CODER")
-  const agentResponse = await coderChain.invoke({ requirement: state.requirement, data: state.data, answer: state.answer, html: state.html});
+  const agentResponse = await coderChain.invoke({ requirement: state.requirement, dataFindings: state.dataFindings, answer: state.answer, html: state.html});
   console.log("Coder>>end: HTML....", agentResponse)
   state.html= agentResponse;
  return state;
@@ -514,9 +535,9 @@ async function codeAgent(state: typeof StateAnnotation.State) {
 async function dataAnalyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...DATA ANALYZER")
   //coderChain.
-  const agentResponse = await dataAnalyzerChain.invoke({ requirement: state.requirement, data: state.data, answer: state.answer});
-  console.log("Coder>>end", agentResponse)
-  //return "__end__";
+  const agentResponse = await dataAnalyzerChain.invoke({ requirement: state.requirement, data: state.data});
+  console.log("DATA ANALYZER end", agentResponse)
+  state.dataFindings = agentResponse;
  return state;
 }
 
@@ -556,15 +577,16 @@ const workflow = new StateGraph(StateAnnotation)
   .addNode("dataAnalyzer",dataAnalyzerAgent)
   .addNode("analyzer",analyzerAgent)
   .addNode("tools", toolAgent)
- // .addNode("fixer", fixerAgent)
+  .addNode("dataAnayzer", dataAnalyzerAgent)
   .addEdge("__start__", "retriever")
-  .addEdge("retriever", "coder")
+  .addEdge("retriever", "dataAnalyzer")
+  .addEdge("dataAnalyzer", "coder")
   .addEdge("coder", "analyzer")
   .addEdge(  "analyzer" , "tools")
   .addConditionalEdges("tools", checkForErrors)
  // .addEdge( "tools", "evaluator")
  // .addEdge("retriever", "coder")
-  .addConditionalEdges("evaluator", shouldContinue);
+  .addConditionalEdges("dataAnalyzer", shouldContinue);//was evaluator
 
 // Initialize memory to persist state between graph runs
 const checkpointer = new MemorySaver();
@@ -614,6 +636,12 @@ await client.loadCSVFile('./line chart.csv', "svg_csv")
 const results = await client.querySVGVectors(`how many categories are there`, "svg_csv");
   console.log(results)*/
 
+  let commonMistakes = `
+   1. For the d3 js function, 'const data = d3.csv(data.csv)', the first line comprises the 'column' headings and, therefore,
+    can be directly accessed using the function 'data.columns.slice()' such as 'data.columns.slice(1)'
+     to retrieve the first column heading. The data values are the rest of the lines under the first line of column headings.\n
+    2. To use 'd3.timeParse("%Y")' ensure that the input is correct.
+  `
   const manual = "";//await readStoreManual();
  let requirement = "The requirement is to produce a d3 js bar graph depicting the wages of one industry: 'Agriculture' for all years '2001' to '2021'. You will be provided with the years and the wages as an input string in CSV format.";
  requirement= `Create a d3 js line graph with a legend at the bottom of the graph. 
@@ -624,7 +652,7 @@ const results = await client.querySVGVectors(`how many categories are there`, "s
 Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46449,44886,43869,42319,40592,39199,38216,37205,36297,34591` 
  //const data = `75,104,369,300,92,64,265,35,287,69,52,23,287,87,114,114,98,137,87,90,63,69,80,113,58,115,30,35,92,460,74,72,63,115,60,75,31,277,52,218,132,316,127,87,449,46,345,48,184,149,345,92,749,93,9502,138,48,87,103,32,93,57,109,127,149,78,162,173,87,184,288,576,460,150,127,92,84,115,218,404,52,85,66,52,201,287,69,114,379,115,161,91,231,230,822,115,80,58,207,171,156,91,138,104,691,74,87,63,333,125,196,57,92,127,136,129,66,80,115,87,57,172,184,230,153,162,104,165,1036,69,196,38,92,162,806,105,69,29,633,102,87,345,58,56,35,49,92,156,58,104,167,115,87,800,87,322,65,149,34,69,69,391,58,58,207,61,253,109,69,57,56,114,58,80,149,287,57,138,92,87,103,230,57,724,50,92,79,92,45,196,29,69,253,173,438,173,218,115,58,92,115,230,87,287,53,80,92,89,4607,173,96,80,115,104,138,92,48,98,231,127,114,91,115,80,403,253,75,63,69,92,171,58,104,47,53,80,213,1498,104,125,127,58,432,90,52,69,173,75,69,139,127,45,87,138,92,58,208,52,149,60,89,119,287,74,138,171,391,104,35,92,656,90,92,103,69,345,115,87,107,93,92,247,172,58,34,99,104,57,80,345,461,330,80,75,94,104,218,58,115,79,108,184,115,60,101,40,92,102,3283,126,92,225,107,288,63,62,80,69,115,46,102,60,40,345,63,114,74,80,144,56,127,98,104,71,98,104,92,208,287,93,230,196,290,164,91,115,40,92,127,231,104,58,610,225,183,98,81,115,97,438,111,173,346,80,172,126,126,317,59,52,197,80,58,577,127,214,71,32,127,115,64,149,1035,80,1612,98,92,58,278,45,69,215,69,92,172,75,58,101,80,137,805,515,149,92,93,125,63,863,231,115,70,115,80,127,98,127,113,69,61,645,23,69,58,104,196,137,93,518,145,58,103,69,123,53,173,230,63,403,93,115,87,74,90,1036,93,160,201,131,460,287,61,98,64,46,138,149,74,56,80,92,67,133,403,160,138,63,69,69,331,92,368,103,92,180,114,58,115,144,345,172,98,76,67,68,80,345,490,62,190,46,91,231,93,79,83,115,58,139,162`
 
- const inputs = {"data": "", "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "", "userManual": manual,"answer": "", "html": ""}
+ const inputs = {"data": "", "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "","answer": "", "html": ""}
  // console.log(inputs)
   var config =  { "configurable": { "thread_id": "42" } }
  const finalState = await app.invoke(
