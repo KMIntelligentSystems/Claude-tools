@@ -8,7 +8,7 @@ import { Builder,/*Browser,*/ ThenableWebDriver, WebElement, By, WebElementPromi
 import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
 import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, 
-  setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors} from './test'
+  setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors, setRectFillStyle} from './test'
 import { createSVGMappingFile } from './tools'
 
 /*
@@ -223,7 +223,17 @@ public async getTickLine(){
         v.getAttribute("fill").then(val => {
           setRectFill(val).then(f => {
            // console.log("rect fill", f)
+           if(!f.includes("null")){
             this.log(f, "rects");
+           }
+          });
+        })
+        v.getAttribute("style").then(val => {
+          console.log("style", val)
+          setRectFillStyle(val).then(f => {
+            if(!f.includes("null")){
+              this.log(f, "rects");
+             }
           });
         })
       } 
@@ -247,6 +257,10 @@ public async getTickLine(){
          // console.log("legend y", val)
          this.log(val, "all_y_pos");
         })
+        v.getAttribute("style").then(val => {
+           console.log("legend style", val)
+         // this.log(val, "all_y_pos");
+         })
         v.getText().then(val =>{
         //  console.log("legend txt", val)
         this.log(val, "all_text");
@@ -294,10 +308,10 @@ public async getTickLine(){
     };*/
 
     var jsErrors = this.driver.manage().logs();//.GetLog(LogType.Browser).Where(x => errorStrings.Any(e => x.Message.Contains(e)));
-    console.log("js errore", jsErrors)
     var res = await jsErrors.get( "browser");
     res.forEach(e => {
-      console.log("ERROR...", e.message)
+      this.log("**There are errors in your d3 js code", "errors");
+      this.log(e.message, "errors");
     })
   }
   public async getLines(){
@@ -444,6 +458,7 @@ public async getTickLine(){
     const allTextFile = "allText.txt";
     const allXPosFile = "allXPos.txt"
     const allYPosFile = "allYPos.txt"
+    const errors = "errors.txt";
     if(type == "svg"){
       writeFileSync(path+svgFile, val+"\n", {
         flag: 'a',
@@ -491,6 +506,10 @@ public async getTickLine(){
       });
     }else if (type == 'tick_text_x'){
       writeFileSync(path+txtTickX, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'errors'){
+      writeFileSync(path+errors, val+"\n", {
         flag: 'a',
       });
     }
