@@ -59,7 +59,7 @@ console.log(res)
     const linePathFile = "linePath.txt";
     let docs:Document[] = [];
    
-    let data = await readFileSync(path+svgFile,  "utf-8");
+   // let data = await readFileSync(path+svgFile,  "utf-8");
 
     /*let svg = new Document({ text: data, id_: "view_box", metadata:{svgId: "000"} });
     docs.push(svg);
@@ -81,7 +81,7 @@ console.log(res)
     let linePaths = new Document({ text: data, id_: "chart_lines", metadata: {svgId: "110"}});
     docs.push(linePaths);*/
     if (fs.existsSync('./svgMapping.txt')) {
-      data = await readFileSync('./svgMapping.txt', 'utf8');//mapping of svg.txt
+      let data = await readFileSync('./svgMapping.txt', 'utf8');//mapping of svg.txt
       let manual = new Document({ text: data, id_: "user_manual", metadata: {svgId: "111"}});
       docs.push(manual);
     }
