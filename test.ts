@@ -244,6 +244,14 @@ export async function setRectFill(fill: string){
   let res = "fill=" + q + fill + q + "></rect>";
   return res;
 }
+
+export async function setRectFillStyle(fill: string){
+    let rect_color = "<rect_color>";
+    let rect_color_end = "</rect_color>";
+    let q = '"';
+    let res = "style=" + q + fill + q + "></rect>";
+    return res;
+  }
 //<text x="18" y="10">Mining</text>
 export async function setLegendText(text:  string){
     let legend = "<legend_txt>";
