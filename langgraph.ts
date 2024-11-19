@@ -29,16 +29,6 @@ import { ChromaAgent } from "./chromaagent";
 import "dotenv/config";
 import { ChatOllama } from "@langchain/ollama";
 
-
-//from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate, PromptTemplate, SystemMessagePromptTemplate
-//import Anthropic from '@anthropic-ai/sdk';
-
-/*const client = new Anthropic({
-  apiKey: "", // This is the default and can be omitted
-});*/
-
-
-
 const ANTHROPIC_API_KEY=""
 
 
@@ -70,7 +60,7 @@ const getHtmlTool =  new DynamicTool({
 });
 /***************************************
  * Piped tool to get specific x-y axes values from the csv loaded 
- * by retriever
+ * by retriever not used
  */
 const getXYAxesValues =  new DynamicTool({
   name: "GRAPH_X_Y_Values",
@@ -79,9 +69,6 @@ const getXYAxesValues =  new DynamicTool({
   func: async (request) => {
       let doc = new Document({ text: request, id_: "x_y_axes_values", metadata: {dataId: "111"}});
       const index = await VectorStoreIndex.fromDocuments([doc]);
-        const retriever = index.asRetriever({
-            similarityTopK: 10,
-          });
         const queryEngine = index.asQueryEngine();
         const res = await queryEngine.query({
           query: request,
@@ -106,7 +93,7 @@ const createSVGVectors =  new DynamicTool({
 });
 /***************************************
  * amalgamates the individual SVG  files to 
- * common mapping file: svgMapping.txt
+ * common mapping file: svgMapping.txt done in C#
  */
 const createSVGMapping =  new DynamicTool({
   name: "File_Saver",
@@ -241,7 +228,7 @@ const csvDataTool =  new DynamicTool({
   func: async (input: String) => {
     console.log("INPUT...",input);
 	  const res = await loadCSVFile(input);//getCSVData
-    console.log("OUTPUT...",res);
+    console.log("OUTPUT>>>", res);
 	  return res;
   }
 });
@@ -259,7 +246,7 @@ const svg_xmlDataTool =  new DynamicTool({
     const name = "svg_csv";
     const client = new ChromaAgent();
     await client.loadCSVFile(csvPath, name);
-    console.log("REQUEST....",request)
+  //  console.log("REQUEST....",request)
     
     const results = await client.querySVGVectors(`An autonomous agent has generated an analysis of what it thinks the graph in SVG
         should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
@@ -267,7 +254,7 @@ const svg_xmlDataTool =  new DynamicTool({
         ***********` + request + "***********", name);
         
         let res = results;
-        console.log("RES....",res)
+     //   console.log("RES....",res)
         let score = "no";
         if(res.includes("yes")){
           score = "pass";
@@ -282,19 +269,19 @@ const svg_xmlDataTool =  new DynamicTool({
 
 /************************************************************** */
 
-const retriever__ = new ChatAnthropic({
+const retriever_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY,
 });//.bindTools([csvDataTool]);
 
-const retriever_ = new ChatOllama({
+const retriever= new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });
 
-const retriever =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+const retriever__ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
 
 //not sure if this is needed
 const outputParser = new StringOutputParser();
@@ -302,7 +289,7 @@ const coderOutputParser = new StringOutputParser();
 const jsonOutputParser = new JsonOutputParser();
 const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool).pipe(outputParser);
 
-const analyzer__ = new ChatAnthropic({
+const analyzer_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
@@ -310,51 +297,61 @@ const analyzer__ = new ChatAnthropic({
 
 
 
-const analyzer_ = new ChatOllama({
+const analyzer = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });//.bindTools([svg_xmlDataTool]);
 
-const analyzer =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+const analyzer__ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//.bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
 //const analyzerChain = svgAnalyzerPrompt.pipe(svg_xmlDataTool).pipe(outputParser).pipe(analyzer); 
 const analyzerChain = svgAnalyzerPrompt.pipe(analyzer).pipe(outputParser);//.pipe(svg_xmlDataTool);//.pipe(jsonOutputParser); 
 
-const evaluator_ = new ChatAnthropic({
+const evaluator__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });
 
-const evaluator__ = new ChatOllama({
+const evaluator = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });
 
-const evaluator = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const evaluator_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const evaluatorChain = evaluatorPrompt.pipe(evaluator).pipe(outputParser);
 
-const coder_ = new ChatAnthropic({
+const coder__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 })//.bindTools([csvDataTool]);
 
-const coder__ = new ChatOllama({
+const coder = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });//.bindTools([csvDataTool]);
 
-const coder = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const coder_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 //const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser);
 const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool).pipe(createSVGVectors).pipe(getHtmlTool);
-const dataAnalyzer_ = new ChatAnthropic({
+const dataAnalyzer__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });//.bindTools([csvDataTool]);
+
+
+const dataAnalyzer = new ChatOllama({
+  model: "llama3",
+  temperature: 0,
+  // other params...
+});
+
+const dataAnalyzer_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const dataAnalyzerChain = dataAnalyzerPrompt.pipe(dataAnalyzer).pipe(coderOutputParser);
 
 const fixer__ = new ChatOllama({
   model: "llama3",
@@ -365,15 +362,6 @@ const fixer__ = new ChatOllama({
 const fixer = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const fixerChain = fixerPrompt.pipe(fixer).pipe(coderOutputParser);
 
-
-const dataAnalyzer__ = new ChatOllama({
-  model: "llama3",
-  temperature: 0,
-  // other params...
-});
-
-const dataAnalyzer = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
-const dataAnalyzerChain = dataAnalyzerPrompt.pipe(dataAnalyzer).pipe(coderOutputParser);
 
 /************************************************************ */
 
@@ -433,7 +421,7 @@ async function checkForErrors(state: typeof StateAnnotation.State) {
 
 async function analyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...Anal")
-  console.log("state",state)
+ // console.log("state",state)
 
    const agentResponse = await analyzerChain.invoke({requirement: state.requirement});
    state["toolQuestion"] = agentResponse;
@@ -476,7 +464,7 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
     flag: 'a',
   });*/
   
-  console.log("anal state end", state)
+  //console.log("anal state end", state)
   return state;
 }
 
@@ -490,7 +478,7 @@ async function toolAgent(state: typeof StateAnnotation.State) {
   Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
   const embedModel = new OpenAIEmbedding();
   Settings.embedModel = embedModel;
-  console.log("state", state)
+  //console.log("state", state)
   //"How many SVG 'rect' elements are present in the graph, and do they correspond to the number of years from 2001 to 2021?";
   const request =  state["toolQuestion"];
   console.log("Hereee", request)
@@ -511,7 +499,7 @@ async function toolAgent(state: typeof StateAnnotation.State) {
     });
     state["answer"] = res.message.content as string;
     state["previousAnswers"].push(state["answer"]);
-    console.log("res", res)
+  //  console.log("res", res)
     return state;
 }
 
@@ -527,7 +515,7 @@ async function fixerAgent(state: typeof StateAnnotation.State) {
 async function codeAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...CODER")
   const agentResponse = await coderChain.invoke({ requirement: state.requirement, dataFindings: state.dataFindings, answer: state.answer, html: state.html});
-  console.log("Coder>>end: HTML....", agentResponse)
+ // console.log("Coder>>end: HTML....", agentResponse)
   state.html= agentResponse;
  return state;
 }
@@ -586,7 +574,7 @@ const workflow = new StateGraph(StateAnnotation)
   .addConditionalEdges("tools", checkForErrors)
  // .addEdge( "tools", "evaluator")
  // .addEdge("retriever", "coder")
-  .addConditionalEdges("dataAnalyzer", shouldContinue);//was evaluator
+  .addConditionalEdges("evaluator", shouldContinue);//was evaluator
 
 // Initialize memory to persist state between graph runs
 const checkpointer = new MemorySaver();
