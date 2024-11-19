@@ -20,13 +20,21 @@ namespace HealthDeptLOV
               c.TestSelectMany();*/
             // CreateEergyInstance();
 
+           // for(int i = 0; i < 10;i++)
+           // {
 
-            delSVGMappingFile();
-            createSVGMappingFile();
-            delSVGFiles();
+                delSVGMappingFile();
+                createSVGMappingFile();
+                //delSVGFiles();
+             //   int milliseconds = 2000;
+             //   Thread.Sleep(milliseconds);
+          //  }
+
         }
         static void createSVGMappingFile()
         {
+            string htmlFileDir = @"C:\anthropic\";
+            string htmlFile = @"chart5_1.html";
             string path = @"C:\salesforce\repos\Claude tools\";
             StringBuilder sb = new StringBuilder();
             string svgFile = "svg.txt";
@@ -79,9 +87,11 @@ In this case the rects form a legend at the bottom of the graph.They have text a
 
             string error = @"
 #5. Errors.";
-
+            //string[] htmlData = readHtmlFile(htmlFileDir, htmlFile);
+           // Console.WriteLine(htmlData);
             if (checkSVGFilesExist())
             {
+                Console.WriteLine("checkSVGFilesExist");
                 string[] svgData = readLinesFromFile(path, svgFile);
                 List<string> stringList = new List<string> { svgHeading };
                 stringList.Add(viewBox);
@@ -161,6 +171,9 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                     writeSVGMappingFile(stringList.ToArray());
                 }
             }
+            int milliseconds = 1000;
+            Thread.Sleep(milliseconds);
+            delSVGFiles();
         }
 
         static void delSVGMappingFile()
@@ -259,6 +272,31 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 Console.WriteLine(exp.Message);
                 
             }
+            int milliseconds = 2000;
+            Thread.Sleep(milliseconds);
+          
+            createSVGMappingFile();
+
+        }
+
+        static string[] readHtmlFile(string path, string htmlFile)
+        {
+            List<string> stringList = new List<string> { "" };
+            if (System.IO.File.Exists(path + htmlFile))
+            {
+                using (StreamReader reader = new StreamReader(path + htmlFile))
+                {
+                    string line;
+                    // Read line by line The value for , must be changed to , in the Preferred Language LOV.
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        var val = line.TrimStart();
+                        stringList.Add(val);
+                    }
+                }
+            }
+            string[] stringArray = stringList.ToArray();
+            return stringArray;
         }
 
         static string[] readLinesFromFile(string path, string svgFile) {
@@ -371,6 +409,9 @@ In this case the rects form a legend at the bottom of the graph.They have text a
             string directoryPath = @"C:\salesforce\repos\Claude tools\";
             
             string fileName = directoryPath + "svg.txt";
+            string fileName1 = directoryPath + "path.txt";
+            string fileName2 = directoryPath + "rect.txt";
+
             bool hasFile = false;
             while (true)
             {
@@ -379,7 +420,7 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 string[] files = Directory.GetFiles(directoryPath);
                 foreach (string file in files)
                 {
-                    if (file == fileName)
+                    if (file == fileName || file == fileName1 || file == fileName2)
                     {
                         hasFile = true;
                     }
