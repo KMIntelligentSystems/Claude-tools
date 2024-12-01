@@ -1,6 +1,7 @@
 import 'chromedriver';
 //import chrome from 'selenium-webdriver/chrome';
 const Chrome = require('selenium-webdriver/chrome');
+import webdriver from 'selenium-webdriver';
 //const { Browser, Builder } = require("selenium-webdriver");
 
 import { Options,ProxyConfig} from 'selenium-webdriver';
@@ -8,7 +9,7 @@ import { Builder,/*Browser,*/ ThenableWebDriver, WebElement, By, WebElementPromi
 import { readFileSync, writeFileSync, unlinkSync,  existsSync } from 'fs';
 
 import { setTransforms, setSVG, setTranslate, setTickLines, setTickText, 
-  setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors, setRectFillStyle} from './test'
+  setPaths, setRect, setLinePaths, setRectFill, setLegendText, setLinePathColors, setRectFillStyle, setCircle} from './test'
 import { createSVGMappingFile } from './tools'
 
 /*
@@ -36,8 +37,21 @@ export class Browser {
    options = new Chrome.Options();
   
   public constructor() {
-    //--disable-web-security
-    this.options.addArguments('--disable-web-security');
+  /*  let service = new Chrome.ServiceBuilder()
+    .loggingTo('./log/file.txt')
+    .enableVerboseLogging()
+    .build();*/
+
+// configure browser options ...
+  //--disable-web-security
+  this.options.addArguments('--disable-web-security');
+  this.options.addArguments('--allow-file-access-from-files');
+ // this.driver = Chrome.Driver.createSession(this.options, service);
+  
+// var driver = new webdriver.Builder()
+// .setChromeOptions(this.options)
+
+   //Using Chrome directly
     this.driver = new Builder().forBrowser('chrome').setChromeOptions(this.options).build();
     
   }
@@ -47,24 +61,22 @@ export class Browser {
     
   }
   public async get(url: string){
+  //  await this.driver.get('https://selenium.dev');
     await this.driver.get(url);
-    
-  
   }
   public async navigate(url: string): Promise<void> {
     await this.driver.navigate().to(url);
   }
+  
 
   public async getSVGElement(){
     const first =  this.driver.findElements(By.xpath("//*[name()='svg']"));
-    let comment = "<!-- The dimensions of the SVG frame  --> ";
             //provides svg h and w
             first.then(value =>{
                 for (var v of value) {
                  v.getAttribute("height").then(h => {
                     v.getAttribute("width").then(w => {
                       let val = setSVG(h,w);
-                     console.log("svg element", val);
                       this.log(val, "svg");
                     })
                   })
@@ -78,8 +90,7 @@ export class Browser {
         //Vector = "transform"
         const globalTransform =  this.driver.findElements(By.xpath("//*[name()='g' and not(@class)]"));
   
-        let commentAdded = false;
-        let comment = "<!-- Translates the svg frame within the given height and width  --> ";
+     
           globalTransform.then(value =>{
            
             for (var v of value) {
@@ -188,7 +199,7 @@ public async getTickLine(){
           v.getAttribute("x").then(val =>{
               if(val){
                   setTickText(v_, val,"x2").then(l => {
-                   // console.log("ticktext x", l)
+                    console.log("ticktext x", l)
                       this.log(l, "tick_text_y");
                   });
               }   
@@ -242,6 +253,42 @@ public async getTickLine(){
     });
   }
 
+  public async getCircles(){
+    const promiseLine = this.driver.findElements(By.xpath("//*[name()='circle']"));
+    let commentY = "<!-- The tick lengths up the y-axis going from right to left --> ";
+    let commentForX = false;
+    let commentX = "<!-- The tick lengths descending from the x-axis --> ";
+    let commentForY = false;
+    promiseLine.then(value =>{
+      for (var v of value) {
+          v.getAttribute("cy").then(val =>{
+              if(val){
+                setCircle(val, "cy").then(v => {
+                  if(v)
+                    this.log(v, "circles");
+                })       
+              } 
+          })
+          v.getAttribute("cx").then(val =>{
+              if(val){
+                setCircle(val, "cx").then(v => {
+                  if(v)
+                    this.log(v, "circles");
+                })  
+              } 
+          })
+          v.getAttribute("fill").then(val =>{
+            if(val){
+              setCircle(val, "fill").then(v => {
+                if(v)
+                  this.log(v, "circles");
+              })  
+            } 
+        })
+        } 
+      })
+    }
+  
   public async getLegendText(){
     let hasX = false;
     let hasY = false;
@@ -315,11 +362,8 @@ public async getTickLine(){
     })
   }
   public async getLines(){
-    const promisePath = this.driver.findElements(By.xpath("//*[name()='path'and @class='line']"));
-    let comment = "<!-- The paths define the line chart --> ";
-    let commentStroke = "<!-- The paths have unique colors --> ";
-    let commentForPath = false;
-    let commentStrokeDone = false;
+    const promisePath = this.driver.findElements(By.xpath("//*[name()='path']"));//and @class='line'
+   
     promisePath.then(value =>{
       if(value.length== 0){
         this.log("**There are no lines depicted for a line chart ", "chart_lines");
@@ -369,8 +413,8 @@ public async getTickLine(){
   public async findElements() {
     try{
         // await this.delFiles();
-       
-         await this.getSVGElement();
+         await this.getCircles();
+/*await this.getSVGElement();
          await this.getTickXY();
        //  await this.getTickLine();
          await this.getTickText();
@@ -379,7 +423,7 @@ public async getTickLine(){
          await this.getPaths();
          await this.getLines();
          await this.getLegendText();
-         await this.getScriptErrors();
+         await this.getScriptErrors();*/
     } catch(Exception){
         const  svg_elements = "<svg>No svg elements were found, indicating a syntax error<svg>";
        
@@ -403,8 +447,12 @@ public async getTickLine(){
       const txtTickYFile ="tick_text_y.txt";
       const linePathFillFile = "linePathFill.txt";
       const svgMappingFile = "svgMaapping.txt";
+      const circlesFile = "circles.txt";
       if(existsSync(path+svgFile)){
         unlinkSync(path+svgFile);
+      }
+      if(existsSync(path+circlesFile)){
+        unlinkSync(path+circlesFile);
       }
       if(existsSync(path+txtTickXFile)){
         unlinkSync(path+txtTickXFile);
@@ -453,11 +501,12 @@ public async getTickLine(){
     const yfile = "tickY.txt";
     const rectFile = "rect.txt";
     const pathFile = "path.txt";
+    const circlesFile = "circles.txt";
     const linePathFile = "linePath.txt";
     const linePathFill = "linePathFill.txt";
     const allTextFile = "allText.txt";
-    const allXPosFile = "allXPos.txt"
-    const allYPosFile = "allYPos.txt"
+    const allXPosFile = "allXPos.txt";
+    const allYPosFile = "allYPos.txt";
     const errors = "errors.txt";
     if(type == "svg"){
       writeFileSync(path+svgFile, val+"\n", {
@@ -510,6 +559,10 @@ public async getTickLine(){
       });
     }else if (type == 'errors'){
       writeFileSync(path+errors, val+"\n", {
+        flag: 'a',
+      });
+    }else if (type == 'circles'){
+      writeFileSync(path+circlesFile, val+"\n", {
         flag: 'a',
       });
     }
