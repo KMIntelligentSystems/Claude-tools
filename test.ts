@@ -122,6 +122,23 @@ export async function setTickLines(line: string, type: string){
         line_x2 = line;
         return line_x2;
     }
+}//<circle cx="22.25" cy="322.5" r="3" fill="rgb(163, 163, 255)"></circle>
+
+export async function setCircle(attr: string, type: string){
+    let circle_x = "<circle cx= ";
+    let circle_y = " cy= ";
+    let circle_fill = " fill=";
+    let circle_end = "></circle>";
+    if(type == "cx"){
+        circle_x = circle_x + '"' + attr + '"';
+        return circle_x;
+    } else if(type == "cy"){
+        circle_y = circle_y + '"' + attr + '"';
+        return circle_y;
+    } else if(type == "fill"){
+        circle_fill = circle_fill + '"' + attr + '"' + circle_end;
+        return circle_fill;
+    }
 }
 
 export async function setTickText(text: string, pos: string, type: string){
