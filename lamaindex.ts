@@ -20,7 +20,7 @@ import {
 
 import { DynamicTool, DynamicStructuredTool } from "@langchain/core/tools";
 import { Document } from "llamaindex";
-import { requirement } from './langgraph'
+//import { requirement } from './langgraph'
 import { PapaCSVReader } from "llamaindex/readers/CSVReader";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 
@@ -78,14 +78,16 @@ export async function persistCSVData(){
   return index;
 }
 
-
+/**********************************
+  * called from retrievers tool csvDataTool to load te llamaindex using
+  * CSVLoader from the langchain library
+  */
 export async function loadCSVFile(input: any){
   let llamadocs:Document[] = [];
-  const path = "C:/Anthropic/US Labour by Industry.csv";
+  const path = "C:/salesforce/repos/Claude tools/global_temperatures.csv";//"C:/Anthropic/US Labour by Industry.csv";
 
     const reader = new PapaCSVReader();
     const documents = await reader.loadData(path);
-   // Split text and create embeddings. Store them in a VectorStoreIndex
    const index = await VectorStoreIndex.fromDocuments(documents);
    const csvPrompt = new PromptTemplate({
      templateVars: ["query", "context"],
