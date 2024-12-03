@@ -50,43 +50,29 @@ console.log(res)
    * Create llamaindex documents
    */
   export async function getDocumentNodes(){
-    const path = 'C:/salesforce/repos/Claude tools/';
-    const svgFile = "svg.txt";
-    const xfile = "tickX.txt";
-    const yfile = "tickY.txt";
-    const rectFile = "rect.txt";
-    const pathFile = "path.txt";
-    const linePathFile = "linePath.txt";
     let docs:Document[] = [];
    
-   // let data = await readFileSync(path+svgFile,  "utf-8");
-
-    /*let svg = new Document({ text: data, id_: "view_box", metadata:{svgId: "000"} });
-    docs.push(svg);
-    data = await readFileSync(path+xfile,  "utf-8");
-    let tick_x = new Document({ text: data, id_: "tick_x", metadata:{svgId: "010"} });
-    docs.push(tick_x);
-    data = await readFileSync(path+yfile,  "utf-8");
-    let tick_y = new Document({ text: data, id_: "tick_y", metadata:{svgId: "011"} });
-    docs.push(tick_y);
-
-    data = await readFileSync(path+rectFile,  "utf-8");
-    let rects = new Document({ text: data, id_: "rects", metadata:{svgId: "001"} });
-    docs.push(rects);
-    data = await readFileSync(path+pathFile,  "utf-8");
-    let paths = new Document({ text: data, id_: "paths", metadata: {svgId: "100"}});
-    docs.push(paths);
-
-    data = await readFileSync(path+linePathFile,  "utf-8");
-    let linePaths = new Document({ text: data, id_: "chart_lines", metadata: {svgId: "110"}});
-    docs.push(linePaths);*/
-    if (fs.existsSync('./svgMapping.txt')) {
-      let data = await readFileSync('./svgMapping.txt', 'utf8');//mapping of svg.txt
-      let manual = new Document({ text: data, id_: "user_manual", metadata: {svgId: "111"}});
-      docs.push(manual);
+    while(true)
+    {
+      if (fs.existsSync('./svgMapping.txt')) {
+        sleep(4000);
+        let data = await readFileSync('./svgMapping.txt', 'utf8');//mapping of svg.txt
+        let manual = new Document({ text: data, id_: "user_manual", metadata: {svgId: "111"}});
+        docs.push(manual);
+        break;
+       /* const path = "C:/salesforce/repos/Claude tools/";
+        const svgFile = "svgMapping.txt"
+        if(fs.existsSync(path+svgFile)){
+          unlinkSync(path+svgFile);
+        }*/
+      
+      }
     }
-
     return docs;
+  }
+
+  async function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   
 //createToolCallingAgent();
