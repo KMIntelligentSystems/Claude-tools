@@ -1,6 +1,7 @@
 import {ChromaVectorStore,OpenAIEmbedding, SimpleDirectoryReader, VectorStoreIndex,  OpenAI,
   Settings, StorageContext, HuggingFaceEmbedding,VectorStoreQueryMode, RetrieverQueryEngine,OpenAIAgent} from "llamaindex";
 import { promises as fsPromises } from 'fs';
+import { PapaCSVReader } from "llamaindex/readers/CSVReader";
 import { ChromaClient, CollectionType } from "chromadb";
 import {
    // ChromaVectorStore,
@@ -21,9 +22,10 @@ import {
     getTranslateDbEmbedding, getTickLineXDbEmbedding, getTickTextYDbEmbedding, getPathDbEmbedding
   } from './vectorstoreEmbedding'*/
   import { DynamicTool } from "@langchain/core/tools";
-  import { readFileSync, writeFileSync, unlinkSync,readdirSync } from 'fs';
+  import { readFileSync, writeFileSync, unlinkSync,readdirSync, existsSync } from 'fs';
   import { getToolCallingAgent, getDocumentNodes } from './llamaindexanalyzertool'
   import { createObjectCsvWriter as createCsvWriter } from 'csv-writer';
+  import { RecursiveCharacterTextSplitter} from "@langchain/textsplitters";
   //import PrimeWorker from "worker-loader!
    
 
@@ -102,24 +104,42 @@ import {
 }
 
   export async function createSVGVectorStore(){
-    const browser = new Browser();
-    browser.get("C:/anthropic/chart5_1.html")
+   /* const browser = new Browser();
+    browser.get("http://127.0.0.1:5501/chart5_1.html")
     await browser.findElements().then(_ => {
-      
+      console.log("DATA  ", browser.circleData.data);
     
-    });
+    });*/
+    await callSVGTemplate();
   }
-  
- 
+
+  export async function chunkData(){
+    const csvPath_ = "C:/Anthropic/global_temperatures.csv";
+    let data = await readFileSync(csvPath_,  "utf-8");
+    const textSplitter = new RecursiveCharacterTextSplitter();
+    textSplitter.chunkSize = 1000;
+    textSplitter.chunkOverlap = 50;
+    const chunks = textSplitter.splitText(data);
+    let strs: string[] = [];
+    (await chunks).forEach(val => {
+      strs.push(val);
+    })
+    return strs;
+  }
+ /**********************************
+  * NOT called from retrievers tool csvDataTool to load te llamaindex using
+  * CSVLoader from the langchain library
+  */
   export async function loadCSVFile(){
     let llamadocs:Document[] = [];
-    const csvPath =  "C:/Anthropic/US Labour by Industry.csv";
+    const csvPath = "C:/salesforce/repos/Claude tools/global_temperatures.csv";// "C:/Anthropic/US Labour by Industry.csv";
     const loader = new CSVLoader(csvPath);
     const docs = await loader.load();
     let content = docs[0]?.pageContent as string;
 
-    let manual = new Document({ text: content, id_: "US_Labour_data", metadata: {svgId: "1111"}});
-    llamadocs.push(manual);
+    //let doc = new Document({ text: content, id_: "US_Labour_data", metadata: {svgId: "1111"}});
+    let doc = new Document({ text: content, id_: "global_temperature_data", metadata: {svgId: "0001"}});
+    llamadocs.push(doc);
 
     return llamadocs;
   }
@@ -133,7 +153,7 @@ import {
         }
 
         try {
-            await fsPromises.writeFile("C:/anthropic/chart5_1.html", data, {//C:/anthropic/chart5.html
+            await fsPromises.writeFile(/*"C:/anthropic/chart5_1.html"*/"C:/salesforce/repos/SVG/chart5_1.html", data, {//C:/anthropic/chart5.html
               flag: 'w',
             });
             } catch (err) {
@@ -171,6 +191,7 @@ import {
       return full;
   }
 
+
   export async function checkSVGFilesExist(){
     const directoryPath = './';
     while(true){
@@ -181,7 +202,7 @@ import {
     }
   }
 
-  export async function createSVGMappingFile(){
+export async function createSVGMappingFile(){  
     const path = 'C:/salesforce/repos/Claude tools/';
     const svgFile = "svg.txt";
     const xfile = "tickX.txt";
@@ -234,6 +255,14 @@ import {
     await writeSVGMappingFile([delimiter]);
     await writeSVGMappingFile(rectData);
     await writeSVGMappingFile([delimiter]);
+  }
+
+  export async function deleteSVGMappingFile(){
+    const path = "C:/salesforce/repos/Claude tools/";
+    const svgFile = "svgMapping.txt"
+    if(existsSync(path+svgFile)){
+      unlinkSync(path+svgFile);
+    }
   }
 
   async function writeSVGMappingFile(data: string[]){
@@ -293,15 +322,16 @@ import {
             console.log(err);
         }*/
 }
-    
-  export async function saveAnalysisTool(data: string){
-    console.log("SAVE...", data);
-    
-   /* try {
-        await fsPromises.writeFile("C:/anthropic/analysis.txt", data, {
+  /***************************************
+   * Signal to C# that html is created and ready for Selenium
+   */
+  export async function callSVGTemplate() {
+
+    try {
+        await fsPromises.writeFile("C:/salesforce/repos/Claude tools/svg.txt", "test", {
           flag: 'w',
         });
         } catch (err) {
             console.log(err);
-        }*/
+        }
 }
