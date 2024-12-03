@@ -13,11 +13,12 @@ import { loadCSVFile, persistCSVData} from "./lamaindex";
 import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
 import { Calculator } from '@langchain/community/tools/calculator';
 import { JsonOutputParser, StringOutputParser } from "@langchain/core/output_parsers";
+
 import { Browser } from "./browser";
 
 import { example1} from "./webdriver";
 import { ChromaClient,  OpenAIEmbeddingFunction } from "chromadb";
-import {  saveHtml, createSVGMappingFile, getHtml,saveAnalysisTool, createSVGVectorStore, checkSVGFilesExist } from "./tools";
+import {  saveHtml, createSVGMappingFile, getHtml, createSVGVectorStore, checkSVGFilesExist, deleteSVGMappingFile } from "./tools";
 import { ChatPromptValue } from "@langchain/core/prompt_values";
 import type { ChatGeneration} from "@langchain/core/outputs";
 import { readFileSync, writeFileSync} from 'fs';
@@ -47,7 +48,7 @@ const saveHtmlTool =  new DynamicTool({
 });
 /***************************************
  * Piped tool to get the html data after it has been saved 
- * by saveHtml()
+ * by saveHtml() in order to provide to sellenium as script? 
  */
 const getHtmlTool =  new DynamicTool({
   name: "File_Saver",
@@ -92,6 +93,7 @@ const createSVGVectors =  new DynamicTool({
   }
 });
 /***************************************
+ * obsolete
  * amalgamates the individual SVG  files to 
  * common mapping file: svgMapping.txt done in C#
  */
@@ -101,6 +103,20 @@ const createSVGMapping =  new DynamicTool({
     "call this to map custom SVG data to common mapping file for use by Analyzer",
   func: async () => {
 	  await createSVGMappingFile();
+  }
+});
+
+/***************************************
+ * 
+ * amalgamates the individual SVG  files to 
+ * common mapping file: svgMapping.txt done in C#
+ */
+const deleteSVGMapping =  new DynamicTool({
+  name: "File_Del",
+  description:
+    "call this to delete SVG mapping file after use by Analyzer",
+  func: async () => {
+	  await deleteSVGMappingFile();
   }
 });
 
@@ -146,7 +162,9 @@ Ensure at the very least the following:
 2. The x-axis labels are displayed, that is, the text values are in the answers\n
 3. The y-axis labels are displayed, that is, the text values are in the answers\n
 If these are not present in the answers, then you must score a "no" \n
-Carefully examine the answers in order to provide the Coder the information required to complete the task.\n
+Carefully examine the answers in order to provide the Coder the information required to complete the task.
+In particular, provide as much technical detail as you can especially where errors are reported. Report the error details where there
+are errors.\n
 If you are satisfied that the requirements are met in evaluating the answers then the score is "yes".
 Create a report outlining how well the requirements seem to be implemented. 
 Your report will be in XML with '<summary_report>' as your root element with whatever child elements seem appropriate 
@@ -160,20 +178,32 @@ const evaluatorPrompt = new PromptTemplate({
 });
 
 const coderTemplate = `<|begin_of_text|><|start_header_id|>coder<|end_header_id|>Your role is Coder. 
-As coder you are proficient at d3 js coding using typescript. You have three tasks:
-1. Look closely at the requirements for the code. As you will see the requirements require specific data inputs. 
-These inputs are available from an external tool. The requirements can be found in {requirement}.\n
-The requirements can be found in {requirement}.  Analyze a report about the data to be displayed in order to
-determine the values to be assigned in the graph, especially, the x-y axes values. This information is in {dataFindings}.\n
-2. Create the d3 js code following the requirements and the format of the CSV data from task 1. 
+As coder you are proficient at d3 js coding using typescript. As a Coder you know that code development can be an iterative process. 
+There is the initial stage where you as coder follow the code and data requirements to produce the first 'cut' of the code. 
+The code is then reviewed and feedback is provided to you at the review stage. The cycle of code enhancement-review may continue until 
+the evaluating agent is satisfied.\n\n
+Note: you are in Initial Phase when the code review report is empty. If there is information in the report then you are 
+in Review Phase and not Initial Phase. This report is in {answer}, look at it to determine your phase.
+**Initial Phase** 
+1. Look closely at the requirements for the code. The requirements can be found in {requirement}.\n
+2. You must infer the data requirements from a report which summarizes the data to be provided. It will, for example, describe 
+the text values for the x-y axes of a d3 js generated graph. Look at this report to determine the appropriate data values for 
+the graph. The data requirements can be found in {dataFindings}\n
+3. Create the d3 js code following the requirements and the format of the CSV data from task 1. 
 Use a csv file called 'data.csv' and use the d3 js function: 'd3.csv("data.csv)'. Make sure the code can be run in a browser.
 It should be pure html. Wrap your code in XML tags: '<html></html>'\n
 Just return the html code without explanation or added commentary. 
-The code will be run in the browser. So just the code is required.\n
-3. You may receive a previous version of your code. In that case you will also receive a report about problems with your code.
-If there are problems, you will find your code in {html}. You will find the report about your previous code in {answer}. 
-Clearly identify the problem and fix it. It should be pure html. Wrap your code in XML tags: '<html></html>'\n
-
+**Review Phase**
+Look closely at the requirements so you have context of the review which follows in point form. The requirements are 
+in {requirement}.\n
+1. Look for any syntax errors itemized in the code review report. Understand the meaning of the syntax errors.
+The code review is in {answer}\n
+2. Look for comment in the code review report about missing elements not meeting the requirements for the d3 js code. 
+The requirements are in {requirement}
+3. Look at code you generated in {html}. Determine how to fix the code. Generate the code as pure html. 
+Wrap your code in XML tags: '<html></html>'\n
+Just return the html code without explanation or added commentary. \n
+In which ever phase you think you are in, announce it as: "The current phase is.."
   `
 const coderPrompt = new PromptTemplate({
       inputVariables: [  "requirement", "dataFindings", "answer", "html"],
@@ -184,13 +214,21 @@ const dataAnalyzerTemplate = `<|begin_of_text|><|start_header_id|>datanalyzer<|e
 As a DataAnalyzer, your task is to ask questions concerning the data to be displayed in a graph with x-y axes. The basis of
 your question will be the stated requirements for the graphical representation of the data.
 You will find the requirements in {requirement}. Look at the requirements. The data is in csv format, the column headings
-are in the top line of the csv data. The data is in {data}. Determine the values for the x and y axes by asking questions to get the values 
+are in the top line of the csv data. The data is in {data}. The actual data can be found under "data:". You will also find a count of 
+the amount of 'chunked' data, that is, data from large datasets. The number of 'chunks' can be found under "count". 
+Look carefully at the data. Make an appraisal of the data and add it to your report. 
+If you require more data to appraise the requirements in totality then make that request in the following way: using then 
+number found in "count", use it to request other data chunks - but no more than 3 - report these numbers with the key: "chunk_numbers".\n
+When there is 'chunking' of data, any previous appraisals can be found in {dataFindings}
+When you are satisfied you have enough information then proceed to the next step of formulating questions based on the requirements
+and the data.\n
+Determine the values for the x and y axes by asking questions to get the values 
 for the graph's axes. Ask your questions in terms of the data such as what are the range values for axes? 
 Place your findings in a report with key: "data_findings".\n
 `
 
 const dataAnalyzerPrompt = new PromptTemplate({
-      inputVariables: [  "requirement", "data"],
+      inputVariables: [  "requirement", "data", "dataFindings"],
       template: dataAnalyzerTemplate,
 });
 
@@ -237,31 +275,34 @@ const csvDataTool =  new DynamicTool({
 /*****************************************
  * Chromadb
  */
+const client = new ChromaAgent();
 const svg_xmlDataTool =  new DynamicTool({
   name: "SVG_XML_Data_Retrieval",
   description:
     "call this to provide the unique XML conceptualization of rendered SVG elements ",
   func: async (request) => {
-    const csvPath = "./line chart.csv";
-    const name = "svg_csv";
-    const client = new ChromaAgent();
-    await client.loadCSVFile(csvPath, name);
-  //  console.log("REQUEST....",request)
+    console.log("REQUEST...",request)
+    const csvPath = "C:/salesforce/repos/Claude tools/";//"./line chart.csv";
+    const name = "global_temperatures.csv";//"svg_csv";
     
-    const results = await client.querySVGVectors(`An autonomous agent has generated an analysis of what it thinks the graph in SVG
-        should represent. It will provide its analysis and a question to you. The agent analysis will be general in regard to the graph elements. You will answer
-        the general question with specific values as numbers or text.
-        ***********` + request + "***********", name);
-        
-        let res = results;
-     //   console.log("RES....",res)
-        let score = "no";
-        if(res.includes("yes")){
-          score = "pass";
-        }
-        let result = {answer: res as string, toolQuestion: request, score: score};
-    
-        return result;
+    const query = `
+    The data consists of rows and columns of CSV data that has been 'chunked'. You may ask for chunks to form a view of the data. But you
+    cannot ask for all the data as it will be too large an input.
+     ***********` + request + "***********";
+     client.dataChunk.ids = ["chunk_0"];
+     const results = await client.loadCSVFile(query, name, client.dataChunk);
+ console.log("DATA CHUNK   ", client.dataChunk)
+      let count: string = client.dataChunk.count.toString();
+      let data: string = client.dataChunk.data;
+      let ids: string[] = client.dataChunk.ids;
+      let idStr: string = "[";
+      ids.forEach(id =>{
+        idStr = idStr + '"' + id + '"' + ",";
+      });
+      idStr = idStr.substring(0, idStr.length - 2) + "]";
+       
+      const res = "Count: " + count + ". Data: " + data + ". Ids: " + idStr;
+      return res;
     }
   
 });
@@ -269,27 +310,27 @@ const svg_xmlDataTool =  new DynamicTool({
 
 /************************************************************** */
 
-const retriever_ = new ChatAnthropic({
+const retriever__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY,
 });//.bindTools([csvDataTool]);
 
-const retriever= new ChatOllama({
+const retriever_ = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });
 
-const retriever__ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"}).bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+const retriever =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//.bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
 
 //not sure if this is needed
 const outputParser = new StringOutputParser();
 const coderOutputParser = new StringOutputParser();
 const jsonOutputParser = new JsonOutputParser();
-const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool).pipe(outputParser);
+const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(svg_xmlDataTool).pipe(outputParser);//svg_xmlDataTool or csvDataTool
 
-const analyzer_ = new ChatAnthropic({
+const analyzer__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
@@ -297,60 +338,61 @@ const analyzer_ = new ChatAnthropic({
 
 
 
-const analyzer = new ChatOllama({
+const analyzer_= new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });//.bindTools([svg_xmlDataTool]);
 
-const analyzer__ =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//.bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
+const analyzer =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//.bindTools([svg_xmlDataTool]);//"gpt-3.5-turbo-instruct"
 //const analyzerChain = svgAnalyzerPrompt.pipe(svg_xmlDataTool).pipe(outputParser).pipe(analyzer); 
 const analyzerChain = svgAnalyzerPrompt.pipe(analyzer).pipe(outputParser);//.pipe(svg_xmlDataTool);//.pipe(jsonOutputParser); 
 
-const evaluator__ = new ChatAnthropic({
+const evaluator_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });
 
-const evaluator = new ChatOllama({
+const evaluator__ = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });
 
-const evaluator_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const evaluator = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const evaluatorChain = evaluatorPrompt.pipe(evaluator).pipe(outputParser);
 
-const coder__ = new ChatAnthropic({
+const coder_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 })//.bindTools([csvDataTool]);
 
-const coder = new ChatOllama({
+const coder__ = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });//.bindTools([csvDataTool]);
 
-const coder_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const coder = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 //const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser);
-const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool).pipe(createSVGVectors).pipe(getHtmlTool);
-const dataAnalyzer__ = new ChatAnthropic({
+const coderChain = coderPrompt.pipe(coder).pipe(coderOutputParser).pipe(saveHtmlTool).pipe(createSVGVectors);//.pipe(getHtmlTool);
+
+const dataAnalyzer_ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
   temperature: 0,
   apiKey: ANTHROPIC_API_KEY
 });//.bindTools([csvDataTool]);
 
 
-const dataAnalyzer = new ChatOllama({
+const dataAnalyzer__ = new ChatOllama({
   model: "llama3",
   temperature: 0,
   // other params...
 });
 
-const dataAnalyzer_ = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
+const dataAnalyzer = new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_API_KEY"] as string, model:"gpt-4o"});//"gpt-3.5-turbo-instruct"
 const dataAnalyzerChain = dataAnalyzerPrompt.pipe(dataAnalyzer).pipe(coderOutputParser);
 
 const fixer__ = new ChatOllama({
@@ -385,7 +427,7 @@ const StateAnnotation = Annotation.Root({
   previousAnswers: Annotation<string[]>,
   previousQuestions: Annotation<string[]>,
   score:  Annotation<string>,
-  stage: Annotation<string>,
+  storeCount: Annotation<string>,
   dataFindings:  Annotation<string>,
 });
 
@@ -419,6 +461,18 @@ async function checkForErrors(state: typeof StateAnnotation.State) {
 //   return "__end__";
 }
 
+async function getChunkedData(state: typeof StateAnnotation.State) {
+  if(state["answer"].includes("error")){
+    console.log("errors", state)
+     return "coder" 
+  } else {
+   console.log("no errors", state)
+  // return "__end__";
+  return "evaluator"
+  }
+//   return "__end__";
+}
+
 async function analyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...Anal")
  // console.log("state",state)
@@ -430,41 +484,7 @@ async function analyzerAgent(state: typeof StateAnnotation.State) {
     let idx = agentResponse.lastIndexOf("toolQuestion");
     state["toolQuestion"] = agentResponse;//.substring(idx, idx + 250);
   }
-   /*if(agentResponse["answer"]){
-    state["answer"] = agentResponse["answer"]
-    state["previousAnswers"].push(agentResponse["answer"]);
-  }
- 
-  if(agentResponse["score"]){
-    console.log("agentResponse score", agentResponse["score"])
-    state["score"] = agentResponse["score"]
-  } else{
-    state["score"] = "no";
-  }
 
-  if(agentResponse["toolQuestion"]){
-    state["toolQuestion"] = agentResponse["toolQuestion"];
-    state["previousQuestions"].push(agentResponse["toolQuestion"]);
-  }*/
- // state["previousQuestions"].push(agentResponse.content.toString());
-  
-  /*response: analyzer gets question with prompt about rects
-  {
-    toolQuestion: "How many SVG 'rect' elements are present in the SVG rendering of the bar graph?"
-  }*/
-
- /*   state["score"] = "no";
-  
-  
-  state["previousQuestions"].push(agentResponse["toolQuestion"]);
-  
-  state["toolQuestion"] = agentResponse["toolQuestion"];
-  let val = "QUESTION: " + state["toolQuestion"] + '\n' + "ANSWER: " + state["answer"] + '\n';
-  writeFileSync('C:/salesforce/repos/Claude tools/findings.t', val+"\n", {
-    flag: 'a',
-  });*/
-  
-  //console.log("anal state end", state)
   return state;
 }
 
@@ -498,7 +518,7 @@ async function toolAgent(state: typeof StateAnnotation.State) {
       query: infoAndRequest,
     });
     state["answer"] = res.message.content as string;
-    state["previousAnswers"].push(state["answer"]);
+  //  state["previousAnswers"].push(state["answer"]);
   //  console.log("res", res)
     return state;
 }
@@ -523,15 +543,13 @@ async function codeAgent(state: typeof StateAnnotation.State) {
 async function dataAnalyzerAgent(state: typeof StateAnnotation.State) {
   console.log("HERE...DATA ANALYZER")
   //coderChain.
-  const agentResponse = await dataAnalyzerChain.invoke({ requirement: state.requirement, data: state.data});
+  const agentResponse = await dataAnalyzerChain.invoke({ requirement: state.requirement, data: state.data, dataFindings: state.dataFindings});
   console.log("DATA ANALYZER end", agentResponse)
   state.dataFindings = agentResponse;
  return state;
 }
 
 async function evalAgent(state: typeof StateAnnotation.State) {
-  console.log("HERE...EVAL")
-  state["stage"] = "2";
   const agentResponse: string = await evaluatorChain.invoke({ requirement: state.requirement, html: state.html, score: state.score, previousAnswers: state.previousAnswers, previousQuestions: state.previousQuestions });
  console.log("EVAL RES", agentResponse)
  state["toolQuestion"] = "";
@@ -554,6 +572,7 @@ async function retrieverAgent(state: typeof StateAnnotation.State) {
   const agentResponse = await retrieverChain.invoke({ requirement: state.requirement});
   console.log("IN RETRIVER...", agentResponse)
   state.data = agentResponse;
+  
   return state;
 }
 
@@ -572,8 +591,6 @@ const workflow = new StateGraph(StateAnnotation)
   .addEdge("coder", "analyzer")
   .addEdge(  "analyzer" , "tools")
   .addConditionalEdges("tools", checkForErrors)
- // .addEdge( "tools", "evaluator")
- // .addEdge("retriever", "coder")
   .addConditionalEdges("evaluator", shouldContinue);//was evaluator
 
 // Initialize memory to persist state between graph runs
@@ -600,47 +617,30 @@ let data = "";
 export async function main() {
   //Get web elements and put in llamaindex documents
 /*const browser = new Browser();
-  browser.get("C:/anthropic/chart5_1.html")
+  browser.get("C:/salesforce/repos/SVG/chart5_1.html")
   await browser.findElements().then(_ => {
     //createSVGMappingFile();
   });*/
- // example1();
-//  await createSVGMappingFile();
- // await testGetfromLlamaindex();
- // await createToolCallingAgent() works perfectly;
- /*const tools =  await createToolCallingAgent();
- console.log("tto",tools)
- doesn't understand - needs more clarification
- askSVGToolAgent();*/
 
- //await testGetfromLlamaindex();
-
-
-//let agent = new ChromaAgent();
-//await agent.loadTextFile();
-/*const client = new ChromaAgent();
-await client.delCollection("svg_csv", "SVG")
-await client.loadCSVFile('./line chart.csv', "svg_csv")
-const results = await client.querySVGVectors(`how many categories are there`, "svg_csv");
-  console.log(results)*/
-
-  let commonMistakes = `
-   1. For the d3 js function, 'const data = d3.csv(data.csv)', the first line comprises the 'column' headings and, therefore,
-    can be directly accessed using the function 'data.columns.slice()' such as 'data.columns.slice(1)'
-     to retrieve the first column heading. The data values are the rest of the lines under the first line of column headings.\n
-    2. To use 'd3.timeParse("%Y")' ensure that the input is correct.
-  `
-  const manual = "";//await readStoreManual();
  let requirement = "The requirement is to produce a d3 js bar graph depicting the wages of one industry: 'Agriculture' for all years '2001' to '2021'. You will be provided with the years and the wages as an input string in CSV format.";
  requirement= `Create a d3 js line graph with a legend at the bottom of the graph. 
  The graph depicts the wages of employees in 3 industries for the years 2001,2002,2003. 
  The industries are: Agriculture, Mining, Utilities. `
+
+ requirement = `
+ The requirement is to produce a d3 js bubble chart depicting the temperatures for every year from 1880 to 2000 
+ where each of the monthly values are clustered for each year. So the span between each year will contain the values 
+ represented as small circles for the 12 months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec'. 
+ The range of the temperatures is -0.8 to +1. Indicate the zero temperature line clearly. Use a color spectrum from blue 
+ for the colder temperatures through to orange-yellow for warmer temperatures.
+ `
  
  const data = `Industry,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008,2007,2006,2005,2004,2003,2002,2001
 Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46449,44886,43869,42319,40592,39199,38216,37205,36297,34591` 
  //const data = `75,104,369,300,92,64,265,35,287,69,52,23,287,87,114,114,98,137,87,90,63,69,80,113,58,115,30,35,92,460,74,72,63,115,60,75,31,277,52,218,132,316,127,87,449,46,345,48,184,149,345,92,749,93,9502,138,48,87,103,32,93,57,109,127,149,78,162,173,87,184,288,576,460,150,127,92,84,115,218,404,52,85,66,52,201,287,69,114,379,115,161,91,231,230,822,115,80,58,207,171,156,91,138,104,691,74,87,63,333,125,196,57,92,127,136,129,66,80,115,87,57,172,184,230,153,162,104,165,1036,69,196,38,92,162,806,105,69,29,633,102,87,345,58,56,35,49,92,156,58,104,167,115,87,800,87,322,65,149,34,69,69,391,58,58,207,61,253,109,69,57,56,114,58,80,149,287,57,138,92,87,103,230,57,724,50,92,79,92,45,196,29,69,253,173,438,173,218,115,58,92,115,230,87,287,53,80,92,89,4607,173,96,80,115,104,138,92,48,98,231,127,114,91,115,80,403,253,75,63,69,92,171,58,104,47,53,80,213,1498,104,125,127,58,432,90,52,69,173,75,69,139,127,45,87,138,92,58,208,52,149,60,89,119,287,74,138,171,391,104,35,92,656,90,92,103,69,345,115,87,107,93,92,247,172,58,34,99,104,57,80,345,461,330,80,75,94,104,218,58,115,79,108,184,115,60,101,40,92,102,3283,126,92,225,107,288,63,62,80,69,115,46,102,60,40,345,63,114,74,80,144,56,127,98,104,71,98,104,92,208,287,93,230,196,290,164,91,115,40,92,127,231,104,58,610,225,183,98,81,115,97,438,111,173,346,80,172,126,126,317,59,52,197,80,58,577,127,214,71,32,127,115,64,149,1035,80,1612,98,92,58,278,45,69,215,69,92,172,75,58,101,80,137,805,515,149,92,93,125,63,863,231,115,70,115,80,127,98,127,113,69,61,645,23,69,58,104,196,137,93,518,145,58,103,69,123,53,173,230,63,403,93,115,87,74,90,1036,93,160,201,131,460,287,61,98,64,46,138,149,74,56,80,92,67,133,403,160,138,63,69,69,331,92,368,103,92,180,114,58,115,144,345,172,98,76,67,68,80,345,490,62,190,46,91,231,93,79,83,115,58,139,162`
-
- const inputs = {"data": "", "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"stage": "1","score": "no", "toolQuestion": "","answer": "", "html": ""}
+//For chunking create the collection
+ client.createCollection("global_temperatures.csv");
+ const inputs = {"data": "", "requirement": requirement, "previousAnswers": [], "previousQuestions": [],"storeCount": 0,"score": "no", "toolQuestion": "","answer": "", "html": ""}
  // console.log(inputs)
   var config =  { "configurable": { "thread_id": "42" } }
  const finalState = await app.invoke(
@@ -651,8 +651,8 @@ Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46
   //console.log(data);
   
 }
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
 void main();
