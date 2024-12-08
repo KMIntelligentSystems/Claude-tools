@@ -72,96 +72,86 @@ export async function persistCSVData(){
   const reader = new PapaCSVReader();
   const documents = await reader.loadData(path);
  // const document = new Document({ text: "Test Text" });
+ // const docStore = storageContext.docStore;
   const index = await VectorStoreIndex.fromDocuments(documents, {
     storageContext,
   });
   return index;
 }
 
+/*export async function getChunkDataAnalysis(){
+  const secondStorageContext = await storageContextFromDefaults({
+    persistDir: "./storage",
+  });
+  if(!secondStorageContext){
+    return "";
+  }
+  const loadedIndex = await VectorStoreIndex.init({
+    storageContext: secondStorageContext,
+  });
+  const loadedQueryEngine = loadedIndex.asQueryEngine();
+  const loadedResponse = await loadedQueryEngine.query({
+    query: "Provide all the data",
+  });
+  console.log("EXISTING START...", loadedResponse.toString())
+  return loadedResponse.toString();
+}
+
+export async function persistChunkDataAnalysis(data: string){
+  const existing: string = await getChunkDataAnalysis();
+  const storageContext = await storageContextFromDefaults({
+    persistDir: "./storage",
+  });
+  existing.concat(data);
+  console.log("EXISTING....", existing)
+  const docStore = storageContext.docStore;
+
+  const document: Document = new Document({ text: existing, id_: "user_manual", metadata: {svgId: "111"}})
+  const index = await VectorStoreIndex.fromDocuments([document], {
+    storageContext,
+  });
+  return index;
+}*/
+
 /**********************************
   * called from retrievers tool csvDataTool to load te llamaindex using
   * CSVLoader from the langchain library
   */
-export async function loadCSVFile(input: any){
-  let llamadocs:Document[] = [];
+export async function loadCSVFile(input_: any){
+  const input = `select all data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
+  years are all the years from 1880 to 2020`;
   const path = "C:/salesforce/repos/Claude tools/global_temperatures.csv";//"C:/Anthropic/US Labour by Industry.csv";
-
+console.log("INPUT...",input)
     const reader = new PapaCSVReader();
     const documents = await reader.loadData(path);
-   const index = await VectorStoreIndex.fromDocuments(documents);
-   const csvPrompt = new PromptTemplate({
-     templateVars: ["query", "context"],
-     template: `The following CSV file is loaded from ${path}
- \`\`\`csv
- {context}
- \`\`\`
- Given the CSV file, use the information provided in {query} to create a command that can be used to fetch the data. 
- Just provide correctly formatted csv output.
- `,
-   });
-   const responseSynthesizer = getResponseSynthesizer("compact", {
-     textQATemplate: csvPrompt,
-   });
- 
-   const queryEngine = index.asQueryEngine({ responseSynthesizer });
-   
- 
+    documents.forEach(e=>{
+      console.log(e.text);
+    })
+   // Settings.chunkSize = 1000;
+   // Settings.chunkOverlap = 50;
+   // console.log("DOCS...", documents)
+   const storageContext = await storageContextFromDefaults({
+    persistDir: "./storage",
+  });
+   const index = await VectorStoreIndex.fromDocuments(documents, {
+    storageContext,
+  });
+  const retriever = index.asRetriever();
+  const results = await retriever.retrieve({
+    query: input,
+  });
+  for (const result of results) {
+    const node = result;
+    console.log("NODE....",node)
+  }
+ /*  const queryEngine = index.asQueryEngine();
    // Query the index
    const response = await queryEngine.query({
      query: String(input),
-   });
+   });*/
 
-   
-   return String(response?.message.content);
+   //console.log("CSV LLAMA", response)
+   //return String(response?.message.content);
+   return String(results);
  }
-
-/*const embeddingFunction = new OpenAIEmbeddingFunction({
-  openai_api_key: process.env["OPENAI_API_KEY"] as string,
-  openai_model: "text-embedding-3-small"
-})
-async function testLLama(){
-  Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
-//  const client:ChromaClient = new ChromaClient();
- // const collection = await client.getOrCreateCollection({name: "svg", embeddingFunction: embeddingFunction});
-   
-  const chromaVS = new ChromaVectorStore({ collectionName:"rects"});
-  //const client = chromaVS.client();
-  
-  const vectorStoreIndex = await VectorStoreIndex.fromVectorStore(chromaVS);
-
-  const retriever = (await VectorStoreIndex.fromVectorStore(chromaVS)).asRetriever(
-    {
-      similarityTopK:1,
-    }
-)
-    const nodes = await retriever.retrieve("Provide all items");
-    console.log(nodes)
- /   const queryEngine = vectorStoreIndex.asQueryEngine({
-   
-    });
-    const response = await queryEngine.query({ query: "List all items" });/
- / const retriever = new VectorIndexRetriever({
-    index: vectorStoreIndex,
-    similarityTopK: 500,
-  });
-
-  const responseSynthesizer = getResponseSynthesizer("tree_summarize");
-  const queryEngine = new RetrieverQueryEngine(retriever, responseSynthesizer);
-  const response = await queryEngine.query({
-    query: "How many results do you have?",
-  });/
-
- // console.log(response.toString());
-
- / const index = await VectorStoreIndex.fromVectorStore(chromaVS);
-  const queryEngine = index.asQueryEngine({
-    similarityTopK: 3,
-  });
-  const response = await queryEngine.query({ query:"Provide all values" });
-  console.log(response.toString());/
-}*/
-
-async function main() {
-// await testLLama();
-}
-main();
+export {};
