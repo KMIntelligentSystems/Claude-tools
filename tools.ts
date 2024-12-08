@@ -334,4 +334,76 @@ export async function createSVGMappingFile(){
         } catch (err) {
             console.log(err);
         }
-}
+  }
+
+  /*******************************************
+   * dataProcessorAgent returns the list of chunk ids
+   * "chunk_numbers": ["chunk_1", "chunk_2", "chunk_3"],
+   * returns set [ 'chunk_2', 'chunk_3', 'chunk_4' ]
+   */
+  export async function getChunkIds(dataFindings: string){
+    let ids = "";
+    if(dataFindings.includes("chunk_numbers")){
+      if(dataFindings.includes("[")){
+        let index_2 = dataFindings.indexOf("[");
+        if(dataFindings.includes("[")){
+          let index_3 = dataFindings.indexOf("]");
+          ids = dataFindings.substring(index_2,index_3);
+        }
+      }
+    }
+    let idArray: string[] = [];
+    if(ids){
+      let index = 0;
+      let len = ids.length;
+      while(true){
+        if(ids.charAt(index)== "_"){
+          if(parseInt(ids.charAt(index+1)) && parseInt(ids.charAt(index+2))){
+            let num = ids.substring(index+1, index+2);
+            idArray.push("chunk_" + num);
+          }else if(parseInt(ids.charAt(index+1))){
+            idArray.push("chunk_" + ids.charAt(index+1));
+          }
+        }
+        
+        index++;
+        if(index >= len-1)
+          break;
+      }
+    }
+    console.log("IDDSSS", idArray)
+    return idArray;   
+  }
+
+  export async function getCummulativeIds(currIds: string[], priorIds: string){
+    let strSet = "[";
+//['chunk_0']
+    const brkt_end = priorIds.indexOf("]");
+    const prevSet = priorIds.substring(0,brkt_end);
+    strSet = prevSet + ",";
+    currIds.forEach(e =>{
+      strSet = strSet + e + ",";
+    })
+    strSet = strSet + "]";
+    console.log("IDDSSS.....STRING", strSet)
+    return strSet;
+  }
+
+  export async function getCummulativeTotalCount(currIds: string[], ids: string){
+    let len = ids.length;
+    let index = 0;
+    let num = currIds.length
+    while(true){
+      if(ids.charAt(index)== "_"){
+        if(parseInt(ids.charAt(index+1)) && parseInt(ids.charAt(index+2))){
+          num++;
+        }
+      }
+      
+      index++;
+      if(index >= len-1)
+        break;
+    }
+    console.log("IDDSSS.....NUM", num)
+    return num;
+  }
