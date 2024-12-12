@@ -273,8 +273,14 @@ export async function createSVGMappingFile(){
       } catch (err) {
           console.log(err);
       }
-  }
+    }
+    
 
+  export async function readTextFile(path: string){
+    let data = await readFileSync(path, "utf-8");
+    return data;
+  }
+  
   async function readLinesFromFile(path: string, f: string){
     let contents = await readFileSync(join(path, f), 'utf-8');
     return contents.split(/\r?\n/);
@@ -295,33 +301,171 @@ export async function createSVGMappingFile(){
       }
   return full;
 }
+ /******************************
+  * Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec  
+1880, -0.2, -0.26, -0.09, -0.17, -0.1, -0.22, -0.2, -0.11, -0.16, -0.23, -0.23, -0.19  
+1881, -0.2, -0.16, 0.02, 0.04, 0.06, -0.19, 0.01, -0.04, -0.16, -0.22, -0.19, -0.08  
+  */
+export async function getCSVData(dataMsg: string, allData:string[][]){
+ // console.log("dataMsg...", dataMsg)
 
-  export async function saveSVGtoCSV(dat: string){
+ // const allData:string[][] = [];
+  let yrData:string[]= [];
+  let data_: string[] = [];
+  let foundRows = false;
+  let str: string = dataMsg;
+  let firstRow = false;
+  if(dataMsg.includes("Year")){
+    let index = dataMsg.indexOf("Dec") + 4;
+    str = dataMsg.substring(index);
+    firstRow = true;
+  }
+    let len = str.length;
+    let i = 0;
+    let commaCounter = 0;
+    const commaCnt = 12;
     
-    const csvWriter = createCsvWriter({
-      path: 'out.csv',
+    while(i < len ){
+      data_.push(str.charAt(i));
+      if(str.charAt(i) == ","){
+        commaCounter++;
+      }
+      if(str.charAt(i)=='\n' && firstRow)
+      {
+        let dataStr: string = data_.join('');
+        yrData.push(dataStr.substring(0,dataStr.length - 1));
+        allData.push(yrData);
+        yrData = [];
+        data_ = [];
+        dataStr = "";
+        commaCounter = 0;
+        foundRows = true;
+
+      }
+      
+      if(commaCounter >= commaCnt && firstRow && foundRows){
+        let dataStr: string = data_.join('');
+        yrData.push(dataStr);
+        let ind = str.indexOf(dataStr);
+        let final = str.substring(ind)
+        if(!final.includes("\n"))
+          allData.push([final]);
+        yrData = [];
+        foundRows = false;
+        commaCounter = 0;
+      }
+
+    /*  if(commaCounter >= commaCnt && !firstRow){
+       // 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
+        let dataStr: string = data_.join('');
+      
+    
+        let ind = str.indexOf(dataStr);
+        let final = str.substring(ind)
+        if(!final.includes("\n"))
+          allData.push([final]);
+       //STRRR 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
+        yrData = [];
+        foundRows = false;
+        commaCounter = 0;
+        dataStr = "";
+        data_ = [];
+      }*/
+      i++;
+    } 
+ }
+
+export async function writeCSVFile(data: string[][]){
+
+const csvWriter = createCsvWriter({
+      path: './out.csv',
       header: [
-        {id: 'name', title: 'NAME'},
-        {id: 'age', title: 'AGE'}
+        {id: 'year', title: 'Year'},
+        {id: 'jan', title: 'Jan'},
+        {id: 'feb', title: 'Feb'},
+        {id: 'mar', title: 'Mar'},
+        {id: 'apr', title: 'Apr'},
+        {id: 'may', title: 'May'},
+        {id: 'jun', title: 'Jun'},
+        {id: 'jul', title: 'Jul'},
+        {id: 'aug', title: 'Aug'},
+        {id: 'sep', title: 'Sep'},
+        {id: 'oct', title: 'Oct'},
+        {id: 'nov', title: 'Nov'},
+        {id: 'dec', title: 'Dec'},
       ]
     });
+    //STRRR 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
+    //"name:John;age:30;city:Canberra";
+    let i = 0;
+    let data_ = [];
+    let csvInput: Record<string,string>[] = [];
+    data.forEach(d => {
+      let str: string = d[0] as string;
+      let temp = "Year:" + str.substring(4);
+      const len = str.length;
+      let j = 0;
+      while(i <= 11){
+        data_.push(str.charAt(j));
+        if(str.charAt(j) == ","){
+          let dataStr: string = data_.join('');
+          if(i == 0){
+            temp = temp + "Jan:" + dataStr + ";";
+          } else if(i == 1){
+            temp = temp + "Feb:" + dataStr + ";";
+          } else if(i == 2){
+            temp = temp + "Mar:" + dataStr + ";";
+          } else if(i == 3){
+            temp = temp + "Apr" + dataStr + ";";
+          } else if(i == 4){
+            temp = temp + "May:" + dataStr + ";";
+          } else if(i == 5){
+            temp = temp + "Jun:" + dataStr + ";";
+          } else if(i == 6){
+            temp = temp + "Jul:" + dataStr + ";";
+          } else if(i == 7){
+            temp = temp + "Aug:" + dataStr + ";";
+          } else if(i == 8){
+            temp = temp + "Sep:" + dataStr + ";";
+          } else if(i == 9){
+            temp = temp + "Oct:" + dataStr + ";";
+          } else if(i == 10){
+            temp = temp + "Nov:" + dataStr + ";";
+          } else if(i == 11){
+            temp = temp + "Dec:" + dataStr + ";";
+          }
+        }
+        i++;
+      }
+      const obj: Record<string, string> = parseStringToObject(temp) as Record<string, string>;
+      console.log("obj", obj)
+      csvInput.push(obj);
+    })
     
-    const data = [
-      { name: 'Alice', age: 30 },
-      { name: 'Bob', age: 25 }
-    ];
-    
+      /*const data = [
+    { year: 'Alice', age: 30 },
+    { name: 'Bob', age: 25 }
+  ];*/
+  
     csvWriter
-      .writeRecords(data)
-      .then(() => console.log('The CSV file was written successfully'));
-   /* try {
-        await fsPromises.writeFile("C:/anthropic/analysis.txt", data, {
-          flag: 'w',
-        });
-        } catch (err) {
-            console.log(err);
-        }*/
-}
+    .writeRecords(csvInput)
+    .then(() => console.log('The CSV file was written successfully'));
+ }
+
+ const dataString = "name:John;age:30;city:Canberra";
+
+const parseStringToObject = (str: string): Record<string, string | number> => {
+    const obj: Record<string, string | number> = {};
+    const pairs = str.split(';');
+    
+    pairs.forEach(pair => {
+        const [key, value] = pair.split(':');
+       // obj[key] = isNaN(Number(value)) ? value : Number(value);
+    });
+
+    return obj;
+};
+
   /***************************************
    * Signal to C# that html is created and ready for Selenium
    */
@@ -373,6 +517,18 @@ export async function createSVGMappingFile(){
     }
     console.log("IDDSSS", idArray)
     return idArray;   
+  }
+/****************************
+ *  'Year,Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec,J-D,D-N,DJF,MAM,JJA,SON\r\n' +
+    '1880,-0.2,-0.26,-0.09,-0.17,-0.1,-0.22,-0.2,-0.11,-0.16,-0.23,-0.23,-0.19,-0.18,***,***,-0.12,-0.18,-0.21\r\n' +
+    '1881,-0.2,-0.16,0.02,0.04,0.06,-0.19,0.01,-0.04,-0.16,-0.22,-0.19,-0.08,-0.09,-0.1,-0.18,0.04,-0.08,-0.19\r\n' +
+    '1882,0.16,0.13,0.04,-0.16,-0.14,-0.23,-0.16,-0.08,-0.15,-0.24,-0.17,-0.36,-0.11,-0.09,0.07,-0.09,-0.16,-0.19\r\n' +
+    '1883,-0.29,-0.37,-0.12,-0.18,-0.18,-0.07,-0.07,-0.14,-0.22,-0.12,-0.24,-0.11,-0.18,-0.2,-0.34,-0.16,-0.1,-0.19\r\n'
+ */
+  export async function getCSVHeading(data:string){
+    let index = data.indexOf("\r\n");
+    let heading = data.substring(0, index);
+    return heading;
   }
 
   export async function getCummulativeIds(currIds: string[], priorIds: string){
