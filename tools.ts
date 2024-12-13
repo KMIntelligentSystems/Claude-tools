@@ -397,70 +397,124 @@ const csvWriter = createCsvWriter({
     });
     //STRRR 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
     //"name:John;age:30;city:Canberra";
-    let i = 0;
-    let data_ = [];
+    
+   
     let csvInput: Record<string,string>[] = [];
     data.forEach(d => {
       let str: string = d[0] as string;
-      let temp = "Year:" + str.substring(4);
-      const len = str.length;
+      let i = 0;
+      let temp = "year:" + str.substring(0,4)+ ";";
+      str = str.substring(5);
+    
+      let data_ :string[] = [];
       let j = 0;
-      while(i <= 11){
-        data_.push(str.charAt(j));
-        if(str.charAt(j) == ","){
-          let dataStr: string = data_.join('');
-          if(i == 0){
-            temp = temp + "Jan:" + dataStr + ";";
-          } else if(i == 1){
-            temp = temp + "Feb:" + dataStr + ";";
-          } else if(i == 2){
-            temp = temp + "Mar:" + dataStr + ";";
-          } else if(i == 3){
-            temp = temp + "Apr" + dataStr + ";";
-          } else if(i == 4){
-            temp = temp + "May:" + dataStr + ";";
-          } else if(i == 5){
-            temp = temp + "Jun:" + dataStr + ";";
-          } else if(i == 6){
-            temp = temp + "Jul:" + dataStr + ";";
-          } else if(i == 7){
-            temp = temp + "Aug:" + dataStr + ";";
-          } else if(i == 8){
-            temp = temp + "Sep:" + dataStr + ";";
-          } else if(i == 9){
-            temp = temp + "Oct:" + dataStr + ";";
-          } else if(i == 10){
-            temp = temp + "Nov:" + dataStr + ";";
-          } else if(i == 11){
-            temp = temp + "Dec:" + dataStr + ";";
-          }
+      let dataStr: string = "";
+      let hasDec = false;
+      while(i < 12 ){
+        if(j > 71){
+          console.log("HERRRR")
+          break;
         }
-        i++;
+         
+        data_.push(str.charAt(j));
+        
+        if(str.charAt(j++) == ","){
+          dataStr = data_.join('');
+          if(dataStr.includes(",")){
+            dataStr = dataStr.substring(0,dataStr.length-1);
+          }
+          if(i == 0){
+            temp = temp + "jan:" + dataStr + ";";
+            i++;
+          } else if(i == 1){
+            temp = temp + "feb:" + dataStr + ";"; 
+            i++;
+          } else if(i == 2){
+            temp = temp + "mar:" + dataStr + ";";
+            i++;
+          } else if(i == 3){
+            temp = temp + "apr:" + dataStr + ";";
+            i++;
+          } else if(i == 4){
+            temp = temp + "may:" + dataStr + ";";
+            i++;
+          } else if(i == 5){
+            temp = temp + "jun:" + dataStr + ";";
+            i++;
+          } else if(i == 6){
+            temp = temp + "jul:" + dataStr + ";";
+            i++;
+          } else if(i == 7){
+            temp = temp + "aug:" + dataStr + ";";
+            i++;
+          } else if(i == 8){
+            temp = temp + "sep:" + dataStr + ";";           
+            i++;
+          } else if(i == 9){
+            temp = temp + "oct:" + dataStr + ";";
+            i++;
+          } else if(i == 10){
+        
+            temp = temp + "nov:" + dataStr + ";";
+            i++;
+          } 
+          data_ = [];
+        } else if(i == 11 && !hasDec){
+          console.log("DATA STRING", dataStr)//= nov
+        //  let reverse = reverseString(str);
+          //let ind = reverse.indexOf(dataStr);
+         // let dec = reverse.substring(ind+dataStr.length+1)
+          let ind = str.indexOf(dataStr);
+          let dec = str.substring(ind+dataStr.length+1)
+
+          if(dec.includes(",")){
+            while(dec.includes(",")){
+              ind = dec.indexOf(dataStr);
+              dec = dec.substring(ind+dataStr.length+1)
+            }
+          } 
+          temp = temp + "dec:" + dec + ";";
+          console.log("size   ", temp.length)
+          hasDec = true;
+          data_ = [];
+          dataStr = "";
+        }
+        
       }
+      console.log(temp)
       const obj: Record<string, string> = parseStringToObject(temp) as Record<string, string>;
       console.log("obj", obj)
       csvInput.push(obj);
     })
-    
+    console.log("CSVVV",csvInput)
+    await csvWriter
+    .writeRecords(csvInput)
+    .then(() => console.log('The CSV file was written successfully'));
       /*const data = [
     { year: 'Alice', age: 30 },
     { name: 'Bob', age: 25 }
   ];*/
   
-    csvWriter
-    .writeRecords(csvInput)
-    .then(() => console.log('The CSV file was written successfully'));
+   
  }
 
- const dataString = "name:John;age:30;city:Canberra";
+ function reverseString(str: string) : string{
+  if (str === "") {
+      return "";
+  } else {
+      return reverseString(str.substr(1)) + str.charAt(0);
+  }
+}
 
 const parseStringToObject = (str: string): Record<string, string | number> => {
     const obj: Record<string, string | number> = {};
     const pairs = str.split(';');
     
     pairs.forEach(pair => {
+      console.log("PAIR ", pair)
         const [key, value] = pair.split(':');
-       // obj[key] = isNaN(Number(value)) ? value : Number(value);
+        if(key)
+        obj[key] = value as string; //isNaN(Number(value)) ? value : Number(value);
     });
 
     return obj;
