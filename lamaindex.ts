@@ -1,4 +1,4 @@
-import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent, DEFAULT_COLLECTION } from "llamaindex";
+import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent, OpenAIEmbedding,} from "llamaindex";
 import {
   SimpleVectorStore,
   ChromaVectorStore,
@@ -37,9 +37,11 @@ const anthropic = new Anthropic({
   model: "claude-3-opus",
 });
 
-Settings.llm = anthropic;
+//Settings.llm = anthropic;
 //Settings.embed_model = embed_model
-
+Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
+  const embedModel = new OpenAIEmbedding();
+  Settings.embedModel = embedModel;
 const agent = new AnthropicAgent({
   llm: anthropic,
   tools: [
@@ -117,23 +119,34 @@ export async function persistChunkDataAnalysis(data: string){
 }*/
 
 /**********************************
-  * called from retrievers tool csvDataTool to load te llamaindex using
-  * CSVLoader from the langchain library
+  * called from retrievers tool csvDataTool to 
+  * interact with chroma store of the csv vectors
+  * input_ is retriever's query passed to csvdatatool
+  * 1. Fetch the chunked data
+  * 2. Place in llamaindex vector store
+  * 3. Query it
+  * 4. Call getCSVData to create object for csv writer
+  * 5. Write csv
+  * 6. Create new collection to be used by embedDataTool
   */
-export async function loadCSVFile(input_: any){
-  console.log("INPUT....", input_)
+export async function loadCSVFile(input: any){
+  console.log("INPUT....LLAMA", input)
   const client: ChromaClient = new ChromaClient({})
   const embeddingFunction = new OpenAIEmbeddingFunction({
     openai_api_key: process.env["OPENAI_API_KEY"] as string,
     openai_model: "text-embedding-3-small"
   })
+  const name = "filtered_global_temperatures";
   const allData: string[][] = [];
-  const collection = await client.getCollection({name: "global_temperatures.csv", embeddingFunction: embeddingFunction});
+  const collection = await client.getCollection({name: name, 
+    embeddingFunction: embeddingFunction});
   const count = await collection.count();
+  //Iterate all the chunks
   for(let i = 0; i < count; i++){
     const results = await collection.get({
       ids: `chunk_${i}`,
     });
+
     let doc = results.documents[0]?.toString();
     //Add header to all subsequent chunks
     if(!doc?.includes("Year"))
@@ -141,81 +154,33 @@ export async function loadCSVFile(input_: any){
       doc = "Year,Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec\n"  + doc;
     }
     const document: Document = new Document({ text: doc, id_: "user_manual", metadata: {svgId: "111"}})
-    
     const input = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
-    rows of years are all the years.\n Just return the requested data without comment`;
-   
-    const index = await VectorStoreIndex.fromDocuments([document]);
+    rows of years are the years between 1880 and 2000 .\n Just return the requested data without comment`;
+   //Put each chunk in a vector store and query it
+    
+   const index = await VectorStoreIndex.fromDocuments([document]);
     const loadedQueryEngine = index.asQueryEngine();
     const response = await loadedQueryEngine.query({
       query: input,
-    });
+   });
     
-    await getCSVData(response?.message.content.toString(), allData);
-   // console.log("ALL DATA...", allData)
+    //The llamaindex query returns a string of the chunked data that
+    //is all the years and data are in one string. This function
+    //returns each year's data as one string array in the array allData
+    /******************************
+    * "Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec  
+      1880, -0.2, -0.26, -0.09, -0.17, -0.1, -0.22, -0.2, -0.11, -0.16, -0.23, -0.23, -0.19  
+      1881, -0.2, -0.16, 0.02, 0.04, 0.06, -0.19, 0.01, -0.04, -0.16, -0.22, -0.19, -0.08"
+      is one string 
+    */
+  //  await getCSVData(response?.message.content.toString(), allData);
+   //     console.log("ALL DATA...", allData)
   }
-  await writeCSVFile(allData);
+  //Each string in set of years is parsed as:
+  //"year:1880;jan:-0.2;...dec:-019;"
+  //Now that the out_csv is created and this works just get file now
+ // await writeCSVFile(allData);
+  const chromaAgent: ChromaAgent = new ChromaAgent();
+  await chromaAgent.createCollection("filtered_global_temperatures","C:/salesforce/repos/Claude tools/out.csv");
 }
-
-export async function loadCSVFile_(input_: any){
-  console.log("INPUT....", input_)
-
-  const input = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
-  rows of years are all the years from 1912 to 1919.\n Just return the requested data without comment`;
-
-  const path = "C:/salesforce/repos/Claude tools/global_temperatures.csv";//"C:/Anthropic/US Labour by Industry.csv";
-console.log("INPUT...",input)
-    const reader = new PapaCSVReader();
-    const documents = await reader.loadData(path);
-    
-    Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
-  /*  Settings.chunkSize = 1000;
-    Settings.chunkOverlap = 50;*/
-   // console.log("DOCS...", documents)
-   const storageContext = await storageContextFromDefaults({
-    persistDir: "./storage",
-  });
-  
-  //const index_= await VectorStoreIndex.fromVectorStore()
-   const index = await VectorStoreIndex.fromDocuments(documents, {
-    storageContext,
-  });
-
- /* const index = await VectorStoreIndex.init({
-    storageContext: storageContext,
-  });*/
-  const loadedQueryEngine = index.asQueryEngine();
-  const response = await loadedQueryEngine.query({
-    query: input,
-  });
- 
-
-/*  Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
-  index = await VectorStoreIndex.fromDocuments([document]);
-  const queryEngine = index.asQueryEngine();
-  const res = await queryEngine.query({
-    query: infoAndRequest,
-  });*/
-
- /* const retriever = index.asRetriever();
-  const results = await retriever.retrieve({
-    query: input,
-  });
-  for (const result of results) {
-    const node = result;
-    console.log("NODE....",node)
-  }*/
- /* const queryEngine = index.asQueryEngine();
-   // Query the index
-   const response = await queryEngine.query({
-     query: input,
-   });*/
-console.log("RESPONSE",response?.message.content)
-   //console.log("CSV LLAMA", response)
-   //return String(response?.message.content);
-  // return String(results);
- // return response;
- }
-
- 
 export {};
