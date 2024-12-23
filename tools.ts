@@ -80,7 +80,7 @@ import {
   }*/
 
   export async function askSVGToolAgent(){
-    const svg_xmlDataTool =  new DynamicTool({
+    const embedDataTool =  new DynamicTool({
       name: "SVG_XML_Data_Retrieval",
       description:
         "call this to provide the unique XML conceptualization of rendered SVG elements ",
@@ -100,7 +100,7 @@ import {
         }
       
     });
-    await svg_xmlDataTool.invoke("Use the tool as directed");
+    await embedDataTool.invoke("Use the tool as directed");
 }
 
   export async function createSVGVectorStore(){
@@ -305,6 +305,7 @@ export async function createSVGMappingFile(){
   * Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec  
 1880, -0.2, -0.26, -0.09, -0.17, -0.1, -0.22, -0.2, -0.11, -0.16, -0.23, -0.23, -0.19  
 1881, -0.2, -0.16, 0.02, 0.04, 0.06, -0.19, 0.01, -0.04, -0.16, -0.22, -0.19, -0.08  
+
   */
 export async function getCSVData(dataMsg: string, allData:string[][]){
  // console.log("dataMsg...", dataMsg)
@@ -354,23 +355,6 @@ export async function getCSVData(dataMsg: string, allData:string[][]){
         foundRows = false;
         commaCounter = 0;
       }
-
-    /*  if(commaCounter >= commaCnt && !firstRow){
-       // 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
-        let dataStr: string = data_.join('');
-      
-    
-        let ind = str.indexOf(dataStr);
-        let final = str.substring(ind)
-        if(!final.includes("\n"))
-          allData.push([final]);
-       //STRRR 1889,-0.09,0.17,0.06,0.1,-0.01,-0.1,-0.07,-0.2,-0.24,-0.25,-0.33,-0.29,-0.1,-0.08,0.01,0.05,-0.12,-0.27
-        yrData = [];
-        foundRows = false;
-        commaCounter = 0;
-        dataStr = "";
-        data_ = [];
-      }*/
       i++;
     } 
  }
@@ -412,7 +396,6 @@ const csvWriter = createCsvWriter({
       let hasDec = false;
       while(i < 12 ){
         if(j > 71){
-          console.log("HERRRR")
           break;
         }
          
@@ -460,10 +443,6 @@ const csvWriter = createCsvWriter({
           } 
           data_ = [];
         } else if(i == 11 && !hasDec){
-          console.log("DATA STRING", dataStr)//= nov
-        //  let reverse = reverseString(str);
-          //let ind = reverse.indexOf(dataStr);
-         // let dec = reverse.substring(ind+dataStr.length+1)
           let ind = str.indexOf(dataStr);
           let dec = str.substring(ind+dataStr.length+1)
 
@@ -474,19 +453,15 @@ const csvWriter = createCsvWriter({
             }
           } 
           temp = temp + "dec:" + dec + ";";
-          console.log("size   ", temp.length)
           hasDec = true;
           data_ = [];
           dataStr = "";
         }
         
       }
-      console.log(temp)
       const obj: Record<string, string> = parseStringToObject(temp) as Record<string, string>;
-      console.log("obj", obj)
       csvInput.push(obj);
     })
-    console.log("CSVVV",csvInput)
     await csvWriter
     .writeRecords(csvInput)
     .then(() => console.log('The CSV file was written successfully'));
@@ -511,7 +486,6 @@ const parseStringToObject = (str: string): Record<string, string | number> => {
     const pairs = str.split(';');
     
     pairs.forEach(pair => {
-      console.log("PAIR ", pair)
         const [key, value] = pair.split(':');
         if(key)
         obj[key] = value as string; //isNaN(Number(value)) ? value : Number(value);
