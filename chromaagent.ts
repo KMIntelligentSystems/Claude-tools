@@ -7,7 +7,7 @@ import { RecursiveCharacterTextSplitter} from "@langchain/textsplitters";
 import { chunkData } from './tools';
 
 class DataChunk{
-  public count: Number = 0;
+  public count: number = 0;
   public data: string = "";
   public ids: string[] = [];
 }
@@ -60,62 +60,65 @@ export class ChromaAgent{
     /*****************************************
      * Create a collecion to hold the  initial CSV data
      * creates the collection before the agents are invoked
-     * This model's maximum context length is 8192 tokens, however you requested 10868 tokens 
+     * Error about Context Window limit :
+     * "This model's maximum context length is 8192 tokens, 
+     * however you requested 10868 tokens" 
      */
-    public async createCollection(name: string){
-            const csvPath_ = "C:/Anthropic/global_temperatures.csv";
-            let data = await readFileSync(csvPath_,  "utf-8");
+    public async createCollection(name: string, csvPath: string){
+            let data = await readFileSync(csvPath,  "utf-8");
             const textSplitter = new RecursiveCharacterTextSplitter();
             textSplitter.chunkSize = 1000;
             textSplitter.chunkOverlap = 50;
-         //   const chunks = textSplitter.splitText(data);
-          //  let strs: string[] = await chunkData();
+        
             const docs = await textSplitter.createDocuments([data])
             const embeddingFunction = new OpenAIEmbeddingFunction({
               openai_api_key: process.env["OPENAI_API_KEY"] as string,
               openai_model: "text-embedding-3-small"
             })
-            
-            const collection = await this.client.getOrCreateCollection({name: name, embeddingFunction: embeddingFunction});
+          
+            const collection = await this.client.getOrCreateCollection({name: name, 
+              embeddingFunction: embeddingFunction});
             docs.forEach(async (chunk, index) => {
-              let meta: Record<string,string>  = {"id": `chunk_${index}` };
               await collection.add({
                 ids: `chunk_${index}`,
                 documents: chunk.pageContent,
-                metadatas:meta
               });
             });
-          }
+        }
 
+          // let meta: Record<string,string>  = {"id": `chunk_${index}` };
 
     /*************************************
-     * Called from langgraph svg_xmlDataTool
+     * Called from langgraph embedDataTool
      * The data has already been loaded by tools.ts at start of run
+     * Loads first chunk to start the process to Data Processor
+     * name = "filtered_global_temperatures"
+     * datachunk[0]
      */
-    public async loadCSVFile(query: string,name: string, chunk: DataChunk){
-console.log("query ", query)
-const requirement = `
- The requirement is to produce a d3 js bubble chart depicting the temperatures for every year from 1880 to 2000 
- where each of the monthly values are clustered for each year. So the span between each year will contain the values 
- represented as small circles for the 12 months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec'. 
- The range of the temperatures is -0.8 to +1. Indicate the zero temperature line clearly. Use a color spectrum from blue 
- for the colder temperatures through to orange-yellow for warmer temperatures.
- `
+    public async getCSVData(query: string,name: string, chunk: DataChunk){
+      console.log("query ", query)
+      const requirement = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
+      rows of years are all the years from 1880 to 2000.\n Just return the requested data without comment.
+      `
       const embeddingFunction = new OpenAIEmbeddingFunction({
         openai_api_key: process.env["OPENAI_API_KEY"] as string,
         openai_model: "text-embedding-3-small"
       })
       const collection = await this.client.getCollection({name: name, embeddingFunction: embeddingFunction});
-      const results = await collection.get({ids: chunk.ids})
-      /*const results_ = await collection.query({nResults: 1, 
-        where: {"id": "chunk_4"}, 
-        queryTexts: [requirement ] });
-        console.log("DATAAAA", results_)*/
+      const results = await collection.get({ids: chunk.ids})//chunk.ids
+      const results_ = await collection.query({nResults: 1, 
+      //  where: {"id": "chunk_0"}, 
+        queryTexts: [requirement ], });
+
+        console.log("GET CSV DATA ", results_)
       chunk.count = await collection.count();
       chunk.data = results.documents.toString();
       return results.documents.toString();
     }
 
+    /************************************************
+     * Called from Data Processor 
+     */
     public async queryChunkedVectors(query: string, name: string, id: string, chunk: DataChunk){
       const embeddingFunction = new OpenAIEmbeddingFunction({
         openai_api_key: process.env["OPENAI_API_KEY"] as string,
@@ -125,10 +128,13 @@ const requirement = `
       const results = await collection.get({
         ids: id,
       });
-      
-     /* const results = await collection.query({nResults: 1, 
+      const q = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
+    rows of years are the years between 1880 and 2000`;
+      const results_ = await collection.query({nResults: 1, 
         where: {ids: id},// n_results
-        queryTexts: [query], });*/
+        queryTexts: [q], });
+      console.log("TESTING CHROMADB QUERY...", results_)
+
       chunk.count = await collection.count();
       chunk.data = results.documents.toString();
       chunk.ids = [id];
@@ -136,7 +142,7 @@ const requirement = `
     }
 
     /***********************************************
-     * Use Chroma store to save the data findings of  
+     * obsolete Use Chroma store to save the data findings of  
      * data processor agent
      */
     public async createDataAnalysisVectorStore(name: string, data: string){
