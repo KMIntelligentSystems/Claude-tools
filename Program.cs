@@ -8,172 +8,272 @@ using System.Text;
 using static System.Net.Mime.MediaTypeNames;
 using System.Xml.Linq;
 using static System.Net.WebRequestMethods;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.IE;
+using System.Collections.Generic;
+using System.Collections;
+using OpenQA.Selenium.DevTools.V129.Debugger;
 
 namespace HealthDeptLOV
 {
+   
     class Program
     {
-
+        const string delimiter = "```";
+        const string circleHeading = @"
+The `<circle>` elements from the captured SVG elements depict the 'cx' and 'cy' positions and the 'r' radius of the circle. The rgb fill color is also provided.
+";
+        const string svgHeading = @"The top '<svg>' element defining height and width of the viewing box.";
+        const string transforms = "transforms";
+        const string tickYHeading = @"This defines the tick elements, their spacing and their text values on the Y axis of the graph.";
+        const string tickXHeading = @"This defines the tick elements, their spacing and their text values on the X axis of the graph.";
+        const string pathHeading = @"There are 2 path elements corresponding to the x-y axes of the graph. The use the commands of the 'd' group";
+        const string lineHeading = @"In a line chart the lines will define the data in the view box. For other graph types the line will delineate some specific data point.";
+        const string errorHeading = @"**There are errors in your d3 js code**";
         static void Main(string[] args)
         {
-            /*  Class1 c = new Class1();
-              c.TestSelectMany();*/
-            // CreateEergyInstance();
-
-           // for(int i = 0; i < 10;i++)
-           // {
-
-                delSVGMappingFile();
-                createSVGMappingFile();
-                //delSVGFiles();
-             //   int milliseconds = 2000;
-             //   Thread.Sleep(milliseconds);
-          //  }
-
+           // delSVGMappingFile();
+          /*  if (checkSVGFilesExist())
+            {
+                getSVG();
+                getLines();
+                getTickXY();
+                getPaths();
+                getCircles();
+                getScriptErrors();
+            }*/
+           
+         
+            createSVGMappingFile();
+            //delSVGFiles();
+            //   int milliseconds = 2000;
+            //   Thread.Sleep(milliseconds);
+            //  }
         }
+        
         static void createSVGMappingFile()
         {
-            string htmlFileDir = @"C:\anthropic\";
-            string htmlFile = @"chart5_1.html";
+            int counter = 0;
             string path = @"C:\salesforce\repos\Claude tools\";
-            StringBuilder sb = new StringBuilder();
-            string svgFile = "svg.txt";
-            string xfile = "tickX.txt";
-            string txtTickX = "tick_text_x.txt";
-            string txtTickY = "tick_text_y.txt";
-            string yfile = "tickY.txt";
-            string rectFile = "rect.txt";
-            string pathFile = "path.txt";
-            string linePathFile = "linePath.txt";
-            string linePathFill = "linePathFill.txt";
-            string allTextFile = "allText.txt";
-            string allXPosFile = "allXPos.txt";
-            string allYPosFile = "allYPos.txt";
-            string errorFile = "errors.txt";
-            string delimiter = "```";
-            string svgHeading = @"
-The mappings of SVG elements are mapped to the four categories below\n
-";
+            string svgFile = @"svg.txt";
 
-            string viewBox = @"
-#1. SVG viewBox:
-This maps to the height and width of a SVG viewing area.
- Look at the specific values below when questioned about the `view_box`:\n
-";
-string path_1 = @"
-#2. SVG path:
-There are two mappings for the path element:
-2.1.The `<path>` element of svg  with class 'domain' maps the x-y axes of a graph.
-The paths will be in a grouping element `<g...></g>`. The 'd' attributes are mapped as:\n
-";
+           
+            while (true) { 
+                delFile(path, svgFile);
+                delSVGMappingFile();
 
-string path_2 = @"
-2.2. The `<path>` element of svg with class `line` maps the lines for a line chart. \n
-";
-
-            string svgPathText_1 = @"
-#3. SVG text for axes:
-The text of interest is for the x-y axes labelling.
-3.1 The text on the x-axis with `tick` lines descending from the x-axis:\n
-";
-
-            string svgPathText_2 = @"
-3.2 The text on the y-axis with `tick` lines horizontally aligned on the y-axis:\n
-";
-            string rect = @"
-#4. SVG rect.
-In this case the rects form a legend at the bottom of the graph.They have text and color values:\n
-";
-
-            string error = @"
-#5. Errors.";
-            //string[] htmlData = readHtmlFile(htmlFileDir, htmlFile);
-           // Console.WriteLine(htmlData);
-            if (checkSVGFilesExist())
-            {
-                Console.WriteLine("checkSVGFilesExist");
-                string[] svgData = readLinesFromFile(path, svgFile);
-                List<string> stringList = new List<string> { svgHeading };
-                stringList.Add(viewBox);
-                stringList.Add(delimiter);
-                for (int i = 0; i < svgData.Length; i++)
+                if (checkSVGFilesExist())
                 {
-                    stringList.Add(svgData[i]);
-                }
-                stringList.Add(delimiter);
-                writeSVGMappingFile(stringList.ToArray());
-                //SVG Path
-                stringList.Clear();
-                string[] pathData = readLinesFromFile(path, pathFile);
-                stringList.Add(path_1);
-                stringList.Add(delimiter);
-                for (int i = 0; i < pathData.Length; i++)
-                {
-                    stringList.Add(pathData[i]);
-                }
-                stringList.Add(delimiter);
-                //SVG Line Paths
-                stringList.Clear();
-                string[] pathDataLines = readLinesFromFiles(path, linePathFile, linePathFill);
-                stringList.Add(path_2);
-                stringList.Add(delimiter);
-                for (int i = 0; i < pathDataLines.Length; i++)
-                {
-                    stringList.Add(pathDataLines[i]);
-                }
-                stringList.Add(delimiter);
-                writeSVGMappingFile(stringList.ToArray());
-                //SVG tick x
-                stringList.Clear();
-                stringList.Add(svgPathText_1);
-                string[] tickXData = readLinesFromFiles(path, xfile, txtTickX);
-                stringList.Add(delimiter);
-                for (int i = 0; i < tickXData.Length; i++)
-                {
-                    stringList.Add(tickXData[i]);
-                }
-                stringList.Add(delimiter);
-                writeSVGMappingFile(stringList.ToArray());
-                //SVG tick x
-                stringList.Clear();
-                stringList.Add(svgPathText_2);
-                string[] tickYData = readLinesFromFiles(path, yfile, txtTickY);
-                stringList.Add(delimiter);
-                for (int i = 0; i < tickYData.Length; i++)
-                {
-                    stringList.Add(tickYData[i]);
-                }
-                stringList.Add(delimiter);
-                writeSVGMappingFile(stringList.ToArray());
-                //SVG rects
-                stringList.Clear();
-                stringList.Add(rect);
-                string[] rectData = readLinesFromFile(path, rectFile);
-                stringList.Add(delimiter);
-                for (int i = 0; i < rectData.Length; i++)
-                {
-                    stringList.Add(rectData[i]);
-                }
-                stringList.Add(delimiter);
-                writeSVGMappingFile(stringList.ToArray());
-                //Errors
-                stringList.Clear();
-                stringList.Add(error);
-                string[] errorData = readLinesFromFile(path, errorFile);
-                if(errorData.Length > 0)
-                {
-                    stringList.Add(delimiter);
-                    for (int i = 0; i < errorData.Length; i++)
+                    IWebDriver driver = new ChromeDriver();
+                    driver.Url = "http://127.0.0.1:5501/chart5_1.html";
+                    IList<IWebElement> elements = driver.FindElements(By.XPath(".//*[name()='svg']"));
+                    List<string> stringList = new List<string> { svgHeading };
+                    string svgStart = "<svg width=";
+                    string svg_h = " height=";
+                    for (int i = 0; i < elements.Count; i++)
                     {
-                        stringList.Add(errorData[i]);
+                        string w = elements[i].GetAttribute("width");
+                        svgStart = svgStart + '"' + w + "'";
+                        string h = elements[i].GetAttribute("height");
+                        svgStart = svgStart + svg_h + '"' + w + "'" + ">";
+                        stringList.Add(svgStart);
                     }
                     stringList.Add(delimiter);
                     writeSVGMappingFile(stringList.ToArray());
-                }
+
+                    IList<IWebElement> elementsLn = driver.FindElements(By.XPath(".//*[name()='line']"));
+                    List<string> stringListLn = new List<string> { lineHeading };
+                    string lineStart = "<line x1=";
+                    string lineEnd = "</line>";
+                    string x2 = " x2=";
+                    string y1 = " y1=";
+                    string y2 = " y2=";
+                    bool isComplete = false;
+                    for (int i = 0; i < elementsLn.Count; i++)
+                    {
+                        isComplete = false;
+                        string x = elementsLn[i].GetAttribute("x1");
+                        if (x != null)
+                        {
+                            lineStart = lineStart + '"' + x + '"';
+                            isComplete = true;
+                        }
+
+                        string x_2 = elementsLn[i].GetAttribute("x2");
+                        if (x_2 != null && isComplete)
+                        {
+                            lineStart = lineStart + x2 + '"' + x_2 + '"';
+                            isComplete = true;
+                        }
+
+                        string y_1 = elementsLn[i].GetAttribute("y1");
+                        if (y_1 != null && isComplete)
+                        {
+                            lineStart = lineStart + y1 + '"' + y_1 + '"';
+                            isComplete = true;
+                        }
+
+                        string y_2 = elementsLn[i].GetAttribute("y2");
+                        if (y_2 != null && isComplete)
+                        {
+                            lineStart = lineStart + y2 + '"' + y_2 + '"' + lineEnd;
+                        }
+                        if(isComplete)
+                            stringListLn.Add(lineStart);
+                        lineStart = "<line x1=";
+                    
+                    }
+                    stringListLn.Add(delimiter);
+                    writeSVGMappingFile(stringListLn.ToArray());
+
+                    IList<IWebElement> elementsPath = driver.FindElements(By.XPath(".//*[name()='path' and @class='domain']"));
+                    List<string> stringListPath = new List<string> { pathHeading };
+                    string pathStart = "<path d=";
+                    string pathEnd = "</path>";
+                    for (int i = 0; i < elementsPath.Count; i++)
+                    {
+                        string d = elementsPath[i].GetAttribute("d");
+                        pathStart = pathStart + '"' + d + "'" + pathEnd;
+                        stringListPath.Add(pathStart);
+                        pathStart = "<path d=";
+                    }
+                    stringListPath.Add(delimiter);
+                    writeSVGMappingFile(stringListPath.ToArray());
+
+                    IList<IWebElement> elementsG = driver.FindElements(By.XPath(".//*[name()='g' and @class='tick']"));
+                    List<string> stringListX = new List<string> { tickXHeading };
+                    List<string> stringListY = new List<string> { tickYHeading };
+                    string tick = "<g class=" + "'" + "tick" + "'" + "transforms=";
+                    string lineX = "<line x2=";
+                    string lineY = "<line y2=";
+                    string textStart = "<text>";
+                    string textEnd = "</text>";
+                    string tickEnd = "</g>";
+                    bool isX = false;
+                    bool isY = false;
+                    bool finished = false;
+                    for (int i = 0; i < elementsG.Count; i++)
+                    {
+                        string trans = elementsG[i].GetAttribute("transform");
+                        tick = tick + '"' + trans + "\"";
+                        IList<IWebElement> els = elementsG[i].FindElements(By.TagName("line"));
+                        for (int j = 0; j < els.Count; j++)
+                        {
+                            string ln = els[j].GetAttribute("x2");
+                            if (ln != null)
+                            {
+                                tick = tick + lineX + '"' + ln + '"';
+                                isY = true;
+                            }
+                            string ln1 = els[j].GetAttribute("y2");
+                            if (ln1 != null)
+                            {
+                                tick = tick + lineY + '"' + ln1 + '"';
+                                isX = true;
+                            }
+                        }
+
+                        IList<IWebElement> elsTxt = elementsG[i].FindElements(By.TagName("text"));
+                        for (int j = 0; j < elsTxt.Count; j++)
+                        {
+                            string t = elsTxt[j].Text;
+                            tick = tick + textStart + t + textEnd;
+                            finished = true;
+                        }
+
+                        if (isX && finished)
+                        {
+                            stringListX.Add(tick);
+                            isX = finished = false;
+                            tick = "<g class=" + "'" + "tick" + "'" + "transforms=";
+                        }
+                        else if (isY && finished)
+                        {
+                            stringListY.Add(tick);
+                            isY = finished = false;
+                            tick = "<g class=" + "'" + "tick" + "'" + "transforms=";
+                        }
+                    }
+                    stringListX.Add(delimiter);
+                    writeSVGMappingFile(stringListX.ToArray());
+                    stringListY.Add(delimiter);
+                    writeSVGMappingFile(stringListY.ToArray());
+
+                    IList<IWebElement> elementsC = driver.FindElements(By.XPath(".//*[name()='circle']"));
+                    string circle_y = " cy= ";
+                    string circle_x = "<circle> cx= ";
+                    string circle_r = " r= ";
+                    string circle_fill = " rgb_color=";
+                    string circle_end = "></circle>";
+                    int count = elementsC.Count;//1452
+                    int counter_1 = 0;
+                    int counter_2 = count - 5;
+                    List<string> stringListC = new List<string> { circleHeading };
+                    stringListC.Add("-The total numver of circles is: " + count + "-");
+                    stringListC.Add("-The first 5 circles-");
+                    for (int i = 0; i < elementsC.Count; i++)
+                    {
+                        if (counter_1 < 5)
+                        {
+                            string cy = elementsC[i].GetAttribute("cy");
+                            circle_y = circle_y + '"' + cy + '"';
+                            string cx = elementsC[i].GetAttribute("cx");
+                            circle_x = circle_x + '"' + cx + '"' + circle_y;
+                            string r = elementsC[i].GetAttribute("r");
+                            circle_x = circle_x + circle_r + "\"" + r + "\"";
+                            string fill = elementsC[i].GetAttribute("style");
+                            circle_x = circle_x + "\"" + fill + "\"" + circle_end;
+                            stringListC.Add(circle_x);
+                            circle_x = "<circle> cx= ";
+                            circle_y = " cy= ";
+                        }
+                        if (counter_1 == 5)
+                        {
+                            stringListC.Add("-The last 5 circles-");
+                        }
+
+                        if (counter_1 >= count - 5 && counter_1 < count)
+                        {
+                            string cy = elementsC[i].GetAttribute("cy");
+                            circle_y = circle_y + '"' + cy + '"';
+                            string cx = elementsC[i].GetAttribute("cx");
+                            circle_x = circle_x + '"' + cx + '"' + circle_y;
+                            string r = elementsC[i].GetAttribute("r");
+                            circle_x = circle_x + circle_r + "\"" + r + "\"";
+                            string fill = elementsC[i].GetAttribute("style");
+                            circle_x = circle_x + "\"" + fill + "\"" + circle_end;
+                            stringListC.Add(circle_x);
+                            circle_x = "<circle> cx= ";
+                            circle_y = " cy= ";
+                        }
+                        counter_1++;
+                    }
+                    stringListC.Add(delimiter);
+                    writeSVGMappingFile(stringListC.ToArray());
+
+                    ILogs logs = driver.Manage().Logs;
+                    var logEntries = logs.GetLog(LogType.Browser); // LogType: Browser, Server, Driver, Client and Profiler
+                    List<string> errorLogs = logEntries.Where(x => x.Level == LogLevel.Severe).Select(x => x.Message).ToList();
+                    bool errAdded = false;
+                    errorLogs.ForEach(e =>
+                    {
+                        if (!errAdded)
+                        {
+                            List<string> stringList = new List<string> { errorHeading };
+                            stringList.Add(e.ToString());
+                            stringList.Add(delimiter);
+                            if(!e.ToString().Contains("favicon.ico"))
+                                writeSVGMappingFile(stringList.ToArray());
+                            errAdded = true;
+                        }
+                    });
+                    counter++;
+               }
+                if (counter >= 3)
+                    break;
             }
-            int milliseconds = 1000;
-            Thread.Sleep(milliseconds);
-            delSVGFiles();
+           
         }
 
         static void delSVGMappingFile()
@@ -194,88 +294,23 @@ In this case the rects form a legend at the bottom of the graph.They have text a
             }
       }
 
-        static void delSVGFiles()
+        static void delFile(string path, string svgFile)
         {
             try
             {
-                string path = "C:/salesforce/repos/Claude tools/";
-                string svgFile = "svg.txt";
-                string xfile = "tickX.txt";
-                string yfile = "tickY.txt";
-                string rectFile = "rect.txt";
-                string pathFile = "path.txt";
-                string linePathFile = "linePath.txt";
-                string allTextFile = "allText.txt";
-                string allXPosFile = "allXPos.txt";
-                string allYPosFile = "allYPos.txt";
-                string txtTickXFile = "tick_text_x.txt";
-                string txtTickYFile = "tick_text_y.txt";
-                string linePathFillFile = "linePathFill.txt";
-                string errorFile = "errors.txt";
-                Console.WriteLine("Here DEL......");
+              
                 if (System.IO.File.Exists(path + svgFile))
                 {
                     System.IO.File.Delete(path + svgFile);
                     Console.WriteLine("Here DEL......SVG...");
                 }
-                if (System.IO.File.Exists(path + txtTickXFile))
-                {
-                    System.IO.File.Delete(path + txtTickXFile);
-                }
-                if (System.IO.File.Exists(path + txtTickYFile))
-                {
-                    System.IO.File.Delete(path + txtTickYFile);
-                }
-                if (System.IO.File.Exists(path + linePathFillFile))
-                {
-                    System.IO.File.Delete(path + linePathFillFile);
-                }
-                if (System.IO.File.Exists(path + xfile))
-                {
-                    System.IO.File.Delete(path + xfile);
-                }
-                if (System.IO.File.Exists(path + yfile))
-                {
-                    System.IO.File.Delete(path + yfile);
-                }
-                if (System.IO.File.Exists(path + rectFile))
-                {
-                    System.IO.File.Delete(path + rectFile);
-                }
-                if (System.IO.File.Exists(path + pathFile))
-                {
-                    System.IO.File.Delete(path + pathFile);
-                }
-                if (System.IO.File.Exists(path + linePathFile))
-                {
-                    System.IO.File.Delete(path + linePathFile);
-                }
-                if (System.IO.File.Exists(path + allTextFile))
-                {
-                    System.IO.File.Delete(path + allTextFile);
-                }
-                if (System.IO.File.Exists(path + allXPosFile))
-                {
-                    System.IO.File.Delete(path + allXPosFile);
-                }
-                if (System.IO.File.Exists(path + allYPosFile))
-                {
-                    System.IO.File.Delete(path + allYPosFile);
-                }
-                if (System.IO.File.Exists(path + errorFile))
-                {
-                    System.IO.File.Delete(path + errorFile);
-                }
+              
             }
             catch (Exception exp)
             {
                 Console.WriteLine(exp.Message);
                 
             }
-            int milliseconds = 2000;
-            Thread.Sleep(milliseconds);
-          
-            createSVGMappingFile();
 
         }
 
@@ -314,13 +349,56 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                     }
                 }
             }
+            else
+            {
+                Console.WriteLine("NOT STARTED");
+            }
+            string[] stringArray = stringList.ToArray();
+            return stringArray;
+        }/*cy= "300"
+<circle cx = "0"
+ fill="rgb(191, 191, 255)"></circle>
+ cy= "315"*/
+        static string[] readCirclesFromFile(string path, string svgFile)
+        {
+            List<string> stringList = new List<string> { "" };
+            if (System.IO.File.Exists(path + svgFile))
+            {
+                using (StreamReader reader = new StreamReader(path + svgFile))
+                {
+                    string line;
+                    string cy = "";
+                    string fill = "";
+                    string cx = "";
+                    // Read line by line The value for , must be changed to , in the Preferred Language LOV.
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        var val = line.TrimStart();
+                        if (val.Contains("cy"))
+                        {
+                            cy = val;
+                        }
+                        else if (val.Contains("cx"))
+                        {
+                            cx = val + cy;
+                        }
+                        else if (val.Contains("fill"))
+                        {
+                            cx = cx + val;
+                        }
+                        stringList.Add(cx);
+                        cx = "";
+                    }
+                   
+                }
+            }
             string[] stringArray = stringList.ToArray();
             return stringArray;
         }
 
         static void writeSVGMappingFile(string[] lines)
         {
-            // Set a variable to the Documents path.
+             
             string docPath = @"C:\salesforce\repos\Claude tools\svgMapping.txt";
             if (!System.IO.File.Exists(docPath))
             {
@@ -409,8 +487,6 @@ In this case the rects form a legend at the bottom of the graph.They have text a
             string directoryPath = @"C:\salesforce\repos\Claude tools\";
             
             string fileName = directoryPath + "svg.txt";
-            string fileName1 = directoryPath + "path.txt";
-            string fileName2 = directoryPath + "rect.txt";
 
             bool hasFile = false;
             while (true)
@@ -420,7 +496,7 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                 string[] files = Directory.GetFiles(directoryPath);
                 foreach (string file in files)
                 {
-                    if (file == fileName || file == fileName1 || file == fileName2)
+                    if (file == fileName)
                     {
                         hasFile = true;
                     }
@@ -429,7 +505,10 @@ In this case the rects form a legend at the bottom of the graph.They have text a
                     Console.WriteLine("has file");
                     break; }
             }
-           return hasFile;
+            string path = "C:/salesforce/repos/Claude tools/";
+            string svgFile = "svg.txt";
+           
+            return hasFile;
         }
 
 
