@@ -4,7 +4,7 @@ import { ChromaClient, OpenAIEmbeddingFunction } from "chromadb";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { RecursiveCharacterTextSplitter} from "@langchain/textsplitters";
-import { chunkData } from './tools';
+import { chunkData, writeAFile } from './tools';
 
 class DataChunk{
   public count: number = 0;
@@ -21,7 +21,7 @@ export class ChromaAgent{
         
     }
 
-   public async delCollection(name: string, ids: string)
+   public async delCollection(name: string, ids: string[])
    {
     const embeddingFunction = new OpenAIEmbeddingFunction({
       openai_api_key: process.env["OPENAI_API_KEY"] as string,
@@ -63,11 +63,12 @@ export class ChromaAgent{
      * Error about Context Window limit :
      * "This model's maximum context length is 8192 tokens, 
      * however you requested 10868 tokens" 
+     * Each chunk has to have a header added except the first which has the csv header
      */
-    public async createCollection(name: string, csvPath: string){
+    public async createCollection(name: string, csvPath: string, header: string){
             let data = await readFileSync(csvPath,  "utf-8");
             const textSplitter = new RecursiveCharacterTextSplitter();
-            textSplitter.chunkSize = 1000;
+            textSplitter.chunkSize = 500;
             textSplitter.chunkOverlap = 50;
         
             const docs = await textSplitter.createDocuments([data])
@@ -79,6 +80,39 @@ export class ChromaAgent{
             const collection = await this.client.getOrCreateCollection({name: name, 
               embeddingFunction: embeddingFunction});
             docs.forEach(async (chunk, index) => {
+              if(!chunk.pageContent.includes(header)){
+                chunk.pageContent = header + chunk.pageContent;
+              }
+              await collection.add({
+                ids: `chunk_${index}`,
+                documents: chunk.pageContent,
+              });
+            });
+        }
+
+        /***************************************************
+         * Called from llamaindex after parsing input data from loadCSVData
+         * to embed so that processor can go through the chunks and add to memory file
+         */
+        public async createVectorStoreEmbedding(name: string, data: string){
+          writeAFile("C:/salesforce/repos/Claude tools/chroma.txt", data)
+          const textSplitter = new RecursiveCharacterTextSplitter();
+            textSplitter.chunkSize = 500;
+            textSplitter.chunkOverlap = 50;
+        
+            const docs = await textSplitter.createDocuments([data])
+          const embeddingFunction = new OpenAIEmbeddingFunction({
+            openai_api_key: process.env["OPENAI_API_KEY"] as string,
+            openai_model: "text-embedding-3-small"
+          })
+          writeAFile("C:/salesforce/repos/Claude tools/chroma.txt", "----------------------")
+          
+
+        
+          const collection = await this.client.getOrCreateCollection({name: name, 
+            embeddingFunction: embeddingFunction});
+            docs.forEach(async (chunk, index) => {
+              writeAFile("C:/salesforce/repos/Claude tools/chroma.txt", chunk.pageContent)
               await collection.add({
                 ids: `chunk_${index}`,
                 documents: chunk.pageContent,
@@ -106,11 +140,11 @@ export class ChromaAgent{
       })
       const collection = await this.client.getCollection({name: name, embeddingFunction: embeddingFunction});
       const results = await collection.get({ids: chunk.ids})//chunk.ids
-      const results_ = await collection.query({nResults: 1, 
+     /* const results_ = await collection.query({nResults: 1, 
       //  where: {"id": "chunk_0"}, 
         queryTexts: [requirement ], });
 
-        console.log("GET CSV DATA ", results_)
+        console.log("GET CSV DATA ", results_)*/
       chunk.count = await collection.count();
       chunk.data = results.documents.toString();
       return results.documents.toString();
@@ -128,12 +162,12 @@ export class ChromaAgent{
       const results = await collection.get({
         ids: id,
       });
-      const q = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
+ /*     const q = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
     rows of years are the years between 1880 and 2000`;
       const results_ = await collection.query({nResults: 1, 
         where: {ids: id},// n_results
         queryTexts: [q], });
-      console.log("TESTING CHROMADB QUERY...", results_)
+      console.log("TESTING CHROMADB QUERY...", results_)*/
 
       chunk.count = await collection.count();
       chunk.data = results.documents.toString();
