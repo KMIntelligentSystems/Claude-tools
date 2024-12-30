@@ -8,7 +8,7 @@ import { StateGraph, StateGraphArgs } from "@langchain/langgraph";
 import { MemorySaver, Annotation } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { /*OpenAI,*/  ChatOpenAI } from "@langchain/openai";
-import { loadCSVFile} from "./lamaindex";
+import { loadCSVFile, delChromaCollectionIds, getBinNumbers, updateChromaDB} from "./lamaindex";
 //import { Anthropic, FunctionTool, AnthropicAgent } from "llamaindex";
 import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
 import { Calculator } from '@langchain/community/tools/calculator';
@@ -18,19 +18,20 @@ import { Browser } from "./browser";
 
 import { example1} from "./webdriver";
 import { ChromaClient,  OpenAIEmbeddingFunction } from "chromadb";
-import {  saveHtml, getHtml, createSVGVectorStore, getChunkIds, deleteSVGMappingFile, readTextFile,  writeCSVFile, getCSVHeading } from "./tools";
+import {  saveHtml, getHtml, createSVGVectorStore, getChunkIds, deleteSVGMappingFile, readTextFile,  writeCSVFile, getCSVHeading,writeFile, writeAFile } from "./tools";
 import { ChatPromptValue } from "@langchain/core/prompt_values";
 import type { ChatGeneration} from "@langchain/core/outputs";
 import { readFileSync, writeFileSync} from 'fs';
 import { getToolCallingAgent, getDocumentNodes/*, loadCSVFile*/ } from './llamaindexanalyzertool'
-import {Document, VectorStoreIndex,  OpenAI,Settings, OpenAIEmbedding} from "llamaindex";
+import {Document, VectorStoreIndex,  OpenAI,Settings, OpenAIEmbedding } from "llamaindex";
 import {testGetfromLlamaindex} from './vectorstoreEmbedding'
 import { ChromaAgent } from "./chromaagent";
+import {str1, str2, str3, str4, str5} from './data'
 
 import "dotenv/config";
 import { ChatOllama } from "@langchain/ollama";
 
-const ANTHROPIC_API_KEY=""
+export const ANTHROPIC_API_KEY=""
 
 
 /*************************************
@@ -207,14 +208,14 @@ const dataAnalyzerPrompt = new PromptTemplate({
 
 
 const dataProcessorTemplate = `<|begin_of_text|><|start_header_id|>dataProcessor<|end_header_id|>
-You will receive data which you will analyze. The data is in {data}. The actual data can be found under "data:".\n
+You will receive data which you will analyze. The data is in {data}. The actual data can be found under "Data:".\n
 The data is associated with the requirements for that data, namely, to create a graph of the data. The requirements are in {requirement}
 Analyze the data and the requirements. Provide a summary of what would be on the x-y axes. Provide a numerical analysis of how the data 
-should be represented for the type of graph required.\n
-Note that the total number of chunks of data you will receive can be found under "count:". Pay close attention to this number.
+should be represented for the type of graph required. DO NOT return any of the chunked data: just the summary.\n
+Note that the total number of chunks of data you will receive can be found under "Count:". Pay close attention to this number in "Count".
 This number denotes the iteration you are in. Your position in the iteration is in {dataChunkId}. \n
-Note that the number of chunks you have analyzed already can be found in {dataChunkId}. If this number is less than that under "count:" then request more data.\n
-When more data is required use the key: "more_data" with value "yes". Otherwise, the value is "no".
+Note that the number of chunks you have analyzed already can be found in {dataChunkId}. If this number is less than that under "Count:" then request more data.\n
+When more data is required use the key: "more_data" with value "yes". Otherwise when the {dataChunkId} is greater than or equal to the "Count", the value to "more_data" is "no".
 You must pay attention to these numbers so you can signal that all data has been processed and then you must state "no" for the key "more_data"\n
 Provide your analysis of the data and requirements ensuring there is a summary of numerical data for this chunk. 
 Place your analysis under the key: "data_analysis".
@@ -237,12 +238,17 @@ const retrieverPrompt = new PromptTemplate({
 /********************************
  * Retriever to load csv, place in index, query index
  */
+let prevData: Record<string, number>[] = [];
 const csvDataTool =  new DynamicTool({
   name: "CSV_Data_Retrieval",
   description:
     "call this passing query to retrieve requested data",
   func: async (query: string) => {
-	  await loadCSVFile(query);
+	  const consolidated: Record<string, number>[] = await loadCSVFile(query, prevData) as Record<string, number>[];
+   // prevData = consolidated;
+    //console.log("prevDataa ", prevData)
+    await writeFile("C:/salesforce/repos/Claude tools/consolidated.txt", consolidated,"finished price");
+    await updateChromaDB(consolidated);
   }
 });
 
@@ -260,14 +266,17 @@ const embedDataTool =  new DynamicTool({
     console.log("REQUEST...",request)
   
     const csvPath = "C:/salesforce/repos/Claude tools/";//"./line chart.csv";
-    const name = "filtered_global_temperatures";// global_temperatures.csv
+    const name = "price_histogram_llama";//filtered_global_temperatures";
 
      client.dataChunk.ids = ["chunk_0"];//was 0
-     //loads first chunk to be processed
+     //loads first chunk to be processed  change  function name getFilteredCSVData
      const results = await client.getCSVData(request, name, client.dataChunk);//query
       let count: string = client.dataChunk.count.toString();
       let data: string = client.dataChunk.data;
       heading = await getCSVHeading(data)+"\r\n";
+     // console.log("DATAAAAA...", data)
+
+     writeAFile("C:/salesforce/repos/Claude tools/chunks.txt", data)
       let ids: string[] = client.dataChunk.ids;
       let idStr: string = "[";
       ids.forEach(id =>{
@@ -301,8 +310,7 @@ const retriever =  new ChatOpenAI({ temperature: 0, apiKey:process.env["OPENAI_A
 const outputParser = new StringOutputParser();
 const coderOutputParser = new StringOutputParser();
 const jsonOutputParser = new JsonOutputParser();
-const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool)
-                        .pipe(embedDataTool).pipe(outputParser);
+const retrieverChain = retrieverPrompt.pipe(retriever).pipe(outputParser).pipe(csvDataTool).pipe(embedDataTool).pipe(outputParser);//.pipe(csvDataTool)
 
 const analyzer__ = new ChatAnthropic({
   model: "claude-3-opus-20240229",
@@ -413,7 +421,7 @@ const StateAnnotation = Annotation.Root({
 async function shouldContinue(state: typeof StateAnnotation.State) {
    if(state["score"]== "no"){
    //if(state["toolQuestion"] != ""){
-      return "coder" 
+      return "analyzer" // keep this "coder" 
 //}
  //     else {
  //     return "analyzer"
@@ -562,19 +570,21 @@ async function dataAnalyzerAgent(state: typeof StateAnnotation.State) {
 let dbQuery: string = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
     rows of years are the years between 1880 and 2000`;
 async function dataProcessorAgent(state: typeof StateAnnotation.State) {
-  console.log("HERE...DATA PROCESSOR", state.data)
+ // console.log("HERE...DATA PROCESSOR", state.data)
   const agentResponse = await dataProcessorChain.invoke({ data: state.data, requirement: state.requirement, dataChunkId: state.dataChunkId });
-  console.log("DATA PROCESSOR..END", agentResponse)
+ // console.log("DATA PROCESSOR..END", agentResponse)
  // const currIds = await getChunkIds(agentResponse);
   //const allIds: number = currIds.length + +state.dataChunkId;
   const allIds: number = +state.dataChunkId + 1;
   console.log("NUM...", allIds);
   state["dataChunkId"] = allIds.toString();
   const id: string = "chunk_" + allIds.toString();
+  console.log("IDDDD ", id)
  // const currIds: string[] = [id];
-  const response =  await client.queryChunkedVectors(dbQuery,"filtered_global_temperatures", id, client.dataChunk)// global_temperatures.csv
+  const response =  await client.queryChunkedVectors(dbQuery,"price_histogram_llama", id, client.dataChunk)//filtered_global_temperatures
    let count: string = client.dataChunk.count.toString();
    let data: string = heading + client.dataChunk.data;
+   writeAFile("C:/salesforce/repos/Claude tools/chunks.txt", data)
    let ids: string[] = client.dataChunk.ids;
    let idStr: string = "[";
    ids.forEach(id =>{
@@ -583,7 +593,7 @@ async function dataProcessorAgent(state: typeof StateAnnotation.State) {
    idStr = idStr.substring(0, idStr.length - 1) + "]";
    
    const res = "Count: " + count + ". Data: " + data + ". Ids: " + idStr;
-   console.log("RES..",res)
+   //console.log("RES..",res)
    state["toolUse"] = "Data processor";
    state["data"] = res; 
  
@@ -606,7 +616,7 @@ async function retrieverAgent(state: typeof StateAnnotation.State) {
   
   const agentResponse = await retrieverChain.invoke({ requirement: state.requirement});
   state.data = agentResponse;
-
+  console.log("HERE...Ret end", state.data)
   //temp use of Data processor to test tool agent from retriever
   state["toolUse"] = "Data processor";
   return state;
@@ -614,24 +624,22 @@ async function retrieverAgent(state: typeof StateAnnotation.State) {
 
 // Define a new graph
 const workflow = new StateGraph(StateAnnotation)
-  .addNode("coder", codeAgent)
+ // .addNode("coder", codeAgent)
   .addNode("retriever", retrieverAgent)
   .addNode("dataProcessor", dataProcessorAgent)
-  .addNode("evaluator", evalAgent)
+ // .addNode("evaluator", evalAgent)
   .addNode("dataAnalyzer",dataAnalyzerAgent)
-  .addNode("analyzer",analyzerAgent)
-  .addNode("tools", toolAgent)
+//  .addNode("analyzer",analyzerAgent)
+//  .addNode("tools", toolAgent)
   .addNode("dataAnayzer", dataAnalyzerAgent)
   .addEdge("__start__", "retriever")
   .addEdge("retriever", "dataProcessor")
-  .addEdge("dataAnalyzer","coder")
-  //.addEdge("retriever", "dataAnalyzer")
-  .addEdge("coder", "analyzer")
+//  .addEdge("dataAnalyzer","coder")
+ /* .addEdge("coder", "analyzer")
   .addEdge("analyzer" , "tools")
-  .addEdge("tools", "evaluator")
- // .addConditionalEdges("tools", checkForErrors)
+  .addEdge("tools", "evaluator")*/
   .addConditionalEdges("dataProcessor", checkForErrors)
-  .addConditionalEdges("evaluator", shouldContinue);//was evaluator
+  .addConditionalEdges("dataAnalyzer", shouldContinue);//was evaluator
 
 // Initialize memory to persist state between graph runs
 const checkpointer = new MemorySaver();
@@ -655,15 +663,31 @@ let data = "";
 
 // Use the Runnable
 export async function main() {
-  const dataCSV:string[][] = 
-  [['1912,-0.25,-0.14,-0.38,-0.17,-0.21,-0.24,-0.42,-0.54,-0.57,-0.57,-0.39,-0.43'],
-  ['1913,-0.4,-0.45,-0.42,-0.39,-0.44,-0.45,-0.36,-0.34,-0.34,-0.32,-0.2,-0.03'],
-  ['1914,0.04,-0.1,-0.24,-0.3,-0.21,-0.25,-0.23,-0.16,-0.17,-0.03,-0.16,-0.04'],
-  ['1915,-0.21,-0.04,-0.1,0.06,-0.06,-0.22,-0.13,-0.22,-0.2,-0.24,-0.13,-0.21'],
-  ['1916,-0.13,-0.15,-0.29,-0.3,-0.35,-0.49,-0.37,-0.28,-0.36,-0.34,-0.46,-0.81'],
-  ['1917,-0.57,-0.63,-0.63,-0.55,-0.55,-0.43,-0.25,-0.22,-0.23,-0.44,-0.34,-0.68'],
-  ['1918,-0.48,-0.34,-0.25,-0.44,-0.43,-0.36,-0.32,-0.32,-0.17,-0.06,-0.12,-0.3'],
-  ['1919,-0.21,-0.23,-0.22,-0.13,-0.28,-0.36,-0.29,-0.33,-0.25,-0.2,-0.42,-0.42']]
+ 
+  let prevData: Record<string,number>[] = [];
+ /* let consolid: Record<string, number>[] = await getBinNumbers(str1, prevData, 0);
+  prevData = consolid;
+  console.log("prevdataaa..", prevData)
+ consolid =  await getBinNumbers(str2, prevData, 1);
+ prevData = consolid;
+  console.log("prevdataaa..1", prevData)
+  consolid =  await getBinNumbers(str3, prevData, 2);
+ prevData = consolid;
+  console.log("prevdataaa..2", prevData)
+  consolid =  await getBinNumbers(str4, prevData, 3);
+ prevData = consolid;
+  console.log("prevdataaa..3", prevData)
+  consolid =  await getBinNumbers(str4, prevData, 4);
+ prevData = consolid;
+  console.log("prevdataaa..4", prevData)
+  consolid =  await getBinNumbers(str5, prevData, 4);
+  prevData = consolid;
+   console.log("prevdataaa..5", prevData)*/
+
+  const query = `<query>
+Extract the prices from the CSV file and calculate the frequency of each price. Group these prices into bins to create a histogram. Determine the number of bins and the size of each bin based on the range of prices. Calculate the frequency of prices within each bin to construct a bar chart histogram using D3.js. Ensure the histogram reflects the distribution of 1000 prices.
+</query>`
+
  /* await writeCSVFile(dataCSV).then(d => {
     console.log("DDD", d)
   })*/
@@ -686,22 +710,31 @@ export async function main() {
  The range of the temperatures is -0.8 to +1. Indicate the zero temperature line clearly. Use a color spectrum from blue 
  for the colder temperatures through to orange-yellow for warmer temperatures.
  `
+ requirement = `The requirement is to produce a d3 js histogram depicting the frequency and range of prices. 
+ You will receive 1000 prices in total to be distributed over the histogram.\n 
+ The Histogram will be a bar chart.\n
+ You will receive information concerning the range and frequency of the prices. 
+ You will determine the bin sizes and the intervals between the bins.
+ You will count the number of prices in each bin so that the frequency of prices is known for each bin.
+ You will only provide the information necessary to create a histogram.`;
  
- const data = `Industry,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008,2007,2006,2005,2004,2003,2002,2001
-Agriculture,58085,55553,53853,53706,52389,51298,49938,48922,47935,47253,47191,46449,44886,43869,42319,40592,39199,38216,37205,36297,34591` 
- //const data = `75,104,369,300,92,64,265,35,287,69,52,23,287,87,114,114,98,137,87,90,63,69,80,113,58,115,30,35,92,460,74,72,63,115,60,75,31,277,52,218,132,316,127,87,449,46,345,48,184,149,345,92,749,93,9502,138,48,87,103,32,93,57,109,127,149,78,162,173,87,184,288,576,460,150,127,92,84,115,218,404,52,85,66,52,201,287,69,114,379,115,161,91,231,230,822,115,80,58,207,171,156,91,138,104,691,74,87,63,333,125,196,57,92,127,136,129,66,80,115,87,57,172,184,230,153,162,104,165,1036,69,196,38,92,162,806,105,69,29,633,102,87,345,58,56,35,49,92,156,58,104,167,115,87,800,87,322,65,149,34,69,69,391,58,58,207,61,253,109,69,57,56,114,58,80,149,287,57,138,92,87,103,230,57,724,50,92,79,92,45,196,29,69,253,173,438,173,218,115,58,92,115,230,87,287,53,80,92,89,4607,173,96,80,115,104,138,92,48,98,231,127,114,91,115,80,403,253,75,63,69,92,171,58,104,47,53,80,213,1498,104,125,127,58,432,90,52,69,173,75,69,139,127,45,87,138,92,58,208,52,149,60,89,119,287,74,138,171,391,104,35,92,656,90,92,103,69,345,115,87,107,93,92,247,172,58,34,99,104,57,80,345,461,330,80,75,94,104,218,58,115,79,108,184,115,60,101,40,92,102,3283,126,92,225,107,288,63,62,80,69,115,46,102,60,40,345,63,114,74,80,144,56,127,98,104,71,98,104,92,208,287,93,230,196,290,164,91,115,40,92,127,231,104,58,610,225,183,98,81,115,97,438,111,173,346,80,172,126,126,317,59,52,197,80,58,577,127,214,71,32,127,115,64,149,1035,80,1612,98,92,58,278,45,69,215,69,92,172,75,58,101,80,137,805,515,149,92,93,125,63,863,231,115,70,115,80,127,98,127,113,69,61,645,23,69,58,104,196,137,93,518,145,58,103,69,123,53,173,230,63,403,93,115,87,74,90,1036,93,160,201,131,460,287,61,98,64,46,138,149,74,56,80,92,67,133,403,160,138,63,69,69,331,92,368,103,92,180,114,58,115,144,345,172,98,76,67,68,80,345,490,62,190,46,91,231,93,79,83,115,58,139,162`
 //For chunking create the initial chromadb collection
- client.createCollection("filtered_global_temperatures", "C:/Anthropic/global_temperatures.csv");//global_temperatures.csv
+ //client.createCollection("filtered_global_temperatures", "C:/Anthropic/global_temperatures.csv");
+ const header = "prices";
+// await delChromaCollectionIds("price_histogram");
+ //await delChromaCollectionIds("price_histogram_llama"); //in llamaindex
+ //client.createCollection("price_histogram", "C:/salesforce/repos/Claude tools/data.csv", header);
  const inputs = {"data": "", "requirement": requirement,"score": "no", "toolQuestion": "","answer": "", "html": "", "dataFindings": "", "dataChunkId": "0"}
  // console.log(inputs)
   var config =  { "configurable": { "thread_id":   "42" } }
  const finalState = await app.invoke(
     inputs,
-    { configurable: { thread_id: "42" }  }
+    { configurable: { thread_id: "42", recursion_limit: 50 }  }
   );
   console.log(finalState);
   //console.log(data);
-  
+ 
+//const consolidated: Record<string, number>[] = await loadCSVFile(query, prevData) as Record<string, number>[];
 }
 
 async function sleep(ms: number): Promise<void> {
