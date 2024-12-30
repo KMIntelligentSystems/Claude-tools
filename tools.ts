@@ -552,13 +552,218 @@ const parseStringToObject = (str: string): Record<string, string | number> => {
     '1881,-0.2,-0.16,0.02,0.04,0.06,-0.19,0.01,-0.04,-0.16,-0.22,-0.19,-0.08,-0.09,-0.1,-0.18,0.04,-0.08,-0.19\r\n' +
     '1882,0.16,0.13,0.04,-0.16,-0.14,-0.23,-0.16,-0.08,-0.15,-0.24,-0.17,-0.36,-0.11,-0.09,0.07,-0.09,-0.16,-0.19\r\n' +
     '1883,-0.29,-0.37,-0.12,-0.18,-0.18,-0.07,-0.07,-0.14,-0.22,-0.12,-0.24,-0.11,-0.18,-0.2,-0.34,-0.16,-0.1,-0.19\r\n'
+  */
+    export async function getCSVHeading(data:string){
+      let index = data.indexOf("\r\n");
+      let heading = data.substring(0, index);
+      return heading;
+    }
+    /*
+    '23:1  \n' +
+      '29:2  \n' +
+      '30:1  \n' +
  */
-  export async function getCSVHeading(data:string){
-    let index = data.indexOf("\r\n");
-    let heading = data.substring(0, index);
-    return heading;
+  interface BinInfo {
+    number: number;
+    count: number;
+  }
+    
+  class Result<Properties = Record<string, any>> {
+    constructor(public readonly properties: Record<keyof Properties, Properties[keyof Properties]>) {}
+    }
+
+  /********************************************
+   * Pass in str1 = '23:1    \n'+'30:1    \n'+
+   * to create an object that can be used to compare objs of same type
+   * then to increment the key in the input set is the same in prevData
+   * called from LoadCSV
+   */
+  export async function cleanseData(data: string){
+    let index = data.indexOf("\n");;
+    let chkStr = data.substring(0, index);
+    let hasLetters = /[a-zA-Z]/.test(chkStr);
+    let temp = "";
+    if(hasLetters){
+      temp = data.substring(chkStr.length + 2);
+    }else {
+      temp = data;
+    }
+    return temp;
   }
 
+  export async function getBinData(data:string, prevData: Record<string, number>[],pos: number){
+    let consolidated: Record<string, number>[] = [];    
+    const len = data.length;
+    let strLen = 0;
+    console.log("len  ", len)
+    while(strLen <= len){
+      
+      let temp = data.substring(strLen);
+      let index = 0;
+      if(temp.includes("\n")){
+        index = temp.indexOf("\n");
+      //  console.log("HERE TEMP INDEX")
+    }else{
+        index = data.substring(strLen).length;
+    }
+      
+      let str = "";
+      if(!data.includes("- ")){
+        str = data.substring(strLen, strLen + index);
+    /*  console.log("str ",str)
+       console.log("index ", index)
+       console.log("strLen ",strLen)*/
+      } else {
+        str = data.substring(strLen+2, index);
+      }
+     // writeAFile("C:/salesforce/repos/Claude tools/test.txt",str+"\n")
+      
+      strLen = strLen + index + 1;
+    //  let s = data.substring(7, 13);
+    //  console.log("ssssssss",s)
+     
+  //    const [key, value] = str.split(':');
+      if(pos == 0){
+        if(str){
+          const res: Record<string, number> = parseStringToObj(str) as Record<string, number>;
+         consolidated.push(res);
+        }
+        
+      }else {
+        if(str.includes(":")){
+          const res: Record<string, number> = parseStringToObj(str) as Record<string, number>;
+          
+          let temp = await searchBinData(res, prevData);
+          temp.forEach(t => {
+            consolidated.push(t);
+          })
+      }
+       // console.log("prevData    ", temp)
+      }
+      
+    }
+   // console.log("consolidated", consolidated)
+    const temp: Record<string, number> [] = await compareDataSets(prevData, consolidated);
+    temp.forEach(t => {
+      consolidated.push(t);
+    })
+    return consolidated;
+  }
+
+  async function compareDataSets(curr: Record<string, number>[], con:Record<string, number>[]){
+    const temp:Record<string, number>[] = [];
+    let keys: string[] = [];
+    let hasKey = false;
+    curr.forEach(c => {
+     // console.log("CURR ", c)
+    })
+    let kk1 = "";
+    Object.values(curr).forEach((k1) => {
+      Object.values(con).forEach((k2) => {
+        
+        Object.keys(k1).forEach(r=> {
+          kk1 = r;
+        })
+        Object.keys(k2).forEach(r=> {
+          if(kk1 == r){
+            hasKey = true;
+          }
+        })
+      });
+      if(!hasKey){
+        Object.values(k1).forEach(v => {
+          let str = kk1 + ":" + v;
+          let newRec: Record<string, number> = parseStringToObj(str) as Record<string, number>;
+          temp.push(newRec)
+        })
+       // keys.push(kk1);
+      }
+       hasKey = false;
+    });
+    return temp;
+  }
+  async function searchBinData(rec: Record<string,number>, prevRecs:  Record<string,number>[]){
+    let temp: Record<string,number>[] = [];
+    let temp2: Record<string,number>[] = [];
+    let recKey = "";
+    let foundRecInPrevData = false;
+   // console.log("KEYS  ", rec)
+    Object.keys(rec).forEach(r=> {
+  //    console.log("REC KEY", r);
+      recKey = r;
+    })
+
+    Object.keys(prevRecs).forEach((key) => {
+   //   
+    });
+//console.log("PREVRECS...", prevRecs)
+    Object.values(prevRecs).forEach((val) => {
+      if(!foundRecInPrevData){
+        if(val[recKey] && rec[recKey]){
+          //   console.log('RECKEY  ', rec[recKey])
+          //   console.log("VALUES  ", val[recKey])
+             let v1: number =  rec[recKey] as number;
+             let v2: number =  val[recKey] as number;
+             let v = v1 + v2;
+           //  console.log("VALUES  combo", v1 + v2)
+             let str = recKey + ":" + v;
+             let newRec: Record<string, number> = parseStringToObj(str) as Record<string, number>;
+             temp.push(newRec)
+             //console.log("TEMP  ", temp)
+             foundRecInPrevData = true;
+           }
+      }
+    });
+   if(!foundRecInPrevData){
+    temp.push(rec);
+   }
+  //  console.log("TEMP.........  ", temp)
+   // console.log("TEMP 2 ", temp2)
+   return temp;
+  }
+
+  const parseStringToObj = (str: string): Record<string, number> => {
+    const obj: Record<string, number> = {};
+    const [key, value] = str.split(':');
+    if(key && value){
+      obj[key] = +value as number; //isNaN(Number(value)) ? value : Number(value);
+    }
+     
+    return obj;
+};
+
+export async function stringifyBinRecords(records: Record<string, number>[], heading: string){
+  let key = "";
+  let val: number = 0;
+  let res = heading + " \r\n";
+  records.forEach(r => {
+   // console.log("RECORDS ", r as Record<string, number>)
+    Object.keys(r).forEach((key) => {
+      Object.values(records).forEach(r=> {
+        if(r[key]){
+         val = r[key] as number;
+         res = res + "'" + key + ":"+ val+ "'  \n";
+         //writeAFile("C:/salesforce/repos/Claude tools/stringy.txt", res)
+       }
+       })
+    })
+  })
+    return res;
+}
+
+export async function writeFile(path: string, records: Record<string, number>[], heading: string){
+  let data = await stringifyBinRecords(records, heading);
+  writeFileSync(path, data, {
+    flag: 'a',
+  });
+}
+
+export async function writeAFile(path: string, data: string){
+  writeFileSync(path, data, {
+    flag: 'a',
+  });
+}
+/********************************************************** */
   export async function getCummulativeIds(currIds: string[], priorIds: string){
     let strSet = "[";
 //['chunk_0']
