@@ -1,4 +1,4 @@
-import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent, OpenAIEmbedding,} from "llamaindex";
+import { Anthropic, FunctionTool, Settings, WikipediaTool, AnthropicAgent, OpenAIEmbedding} from "llamaindex";
 import {
   SimpleVectorStore,
   ChromaVectorStore,
@@ -17,7 +17,7 @@ import {
   RetrieverQueryEngine,
   StorageContext,
 } from "llamaindex";
-
+import {str0,str1, str2, str3, str4, str5} from './data'
 import { ChromaClient, OpenAIEmbeddingFunction } from "chromadb";
 
 import { DynamicTool, DynamicStructuredTool } from "@langchain/core/tools";
@@ -26,22 +26,24 @@ import { Document } from "llamaindex";
 import { PapaCSVReader } from "llamaindex/readers/CSVReader";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 import { ChromaAgent } from "./chromaagent";
-import { getCSVData, writeCSVFile } from "./tools"
+import { getBinData, stringifyBinRecords, cleanseData, writeFile, writeAFile } from "./tools"
+import { ANTHROPIC_API_KEY } from './langgraph'
 
 Settings.callbackManager.on("llm-tool-call", (event:any) => {
   console.log("llm-tool-call", event.detail.toolCall);
 });
 
 const anthropic = new Anthropic({
-  apiKey: "",
+  apiKey: ANTHROPIC_API_KEY,
   model: "claude-3-opus",
 });
 
 //Settings.llm = anthropic;
 //Settings.embed_model = embed_model
+//OpenAI
 Settings.llm =  new OpenAI({ apiKey:process.env["OPENAI_API_KEY"] as string});
   const embedModel = new OpenAIEmbedding();
-  Settings.embedModel = embedModel;
+ Settings.embedModel = embedModel;
 const agent = new AnthropicAgent({
   llm: anthropic,
   tools: [
@@ -129,41 +131,63 @@ export async function persistChunkDataAnalysis(data: string){
   * 5. Write csv
   * 6. Create new collection to be used by embedDataTool
   */
-export async function loadCSVFile(input: any){
+export async function loadCSVFile(input: any, prevData: Record<string,number>[]){
   console.log("INPUT....LLAMA", input)
   const client: ChromaClient = new ChromaClient({})
   const embeddingFunction = new OpenAIEmbeddingFunction({
     openai_api_key: process.env["OPENAI_API_KEY"] as string,
     openai_model: "text-embedding-3-small"
   })
-  const name = "filtered_global_temperatures";
+  const name = "price_histogram"; //"filtered_global_temperatures"; //;
+  let consolidated: Record<string, number>[] = [];//prevData;
   const allData: string[][] = [];
   const collection = await client.getCollection({name: name, 
     embeddingFunction: embeddingFunction});
   const count = await collection.count();
+  console.log("COUNT ", count)
   //Iterate all the chunks
   for(let i = 0; i < count; i++){
     const results = await collection.get({
       ids: `chunk_${i}`,
     });
-
+    console.log(`chunk_${i}`)
+  //  console.log("CONSOLIDATED", consolidated)
+    await writeFile("C:/salesforce/repos/Claude tools/consolidated.txt", consolidated,"price");
     let doc = results.documents[0]?.toString();
+
+   // console.log('DOC ', doc)
     //Add header to all subsequent chunks
-    if(!doc?.includes("Year"))
+   /* if(!doc?.includes("Year"))
     {
       doc = "Year,Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec\n"  + doc;
-    }
+    }*/
+   if(doc?.includes("price")){
+     doc = doc.substring("price".length + 1);
+   }
+   
     const document: Document = new Document({ text: doc, id_: "user_manual", metadata: {svgId: "111"}})
-    const input = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
+    let input = `select data where the months: 'Jan','Feb','Mar','Apr','May','Jun','July','Aug','Sep','Oct','Nov','Dec' and the 
     rows of years are the years between 1880 and 2000 .\n Just return the requested data without comment`;
+    
+    input = `Order the data in ascending order. Count the unique numbers in the list. Output the unique number and the count of that number.
+    Just output the list of numbers and their frequencies separated by a colon (":") `
    //Put each chunk in a vector store and query it
-    
-   const index = await VectorStoreIndex.fromDocuments([document]);
-    const loadedQueryEngine = index.asQueryEngine();
-    const response = await loadedQueryEngine.query({
-      query: input,
-   });
-    
+   //sleep(1000)
+  let response: string = await queryVectorStore(input, document);
+  let data = await cleanseData(response);
+   //console.log("LLAMAINDEX....", data)
+   consolidated  = await getBinNumbers(data, consolidated, i);
+  // consolidated = [];
+ //  await consolidateData(temp, consolidated);
+   
+//KEEP   
+//  const chromaAgent: ChromaAgent = new ChromaAgent(); 
+// await chromaAgent.createVectorStoreEmbedding("price_histogram_llama", response.toString(), i);
+  
+   // await updateVectorStore("price_histogram_llama", i-1,  response.toString() );
+  
+   
+    //USED TO PARSE THE RETURNED STRINGS FROM RAG INTO CSV FILE FOR DATA PROCESSOR. NOT NEEDED
     //The llamaindex query returns a string of the chunked data that
     //is all the years and data are in one string. This function
     //returns each year's data as one string array in the array allData
@@ -176,11 +200,126 @@ export async function loadCSVFile(input: any){
   //  await getCSVData(response?.message.content.toString(), allData);
    //     console.log("ALL DATA...", allData)
   }
+  return consolidated;
   //Each string in set of years is parsed as:
   //"year:1880;jan:-0.2;...dec:-019;"
   //Now that the out_csv is created and this works just get file now
  // await writeCSVFile(allData);
-  const chromaAgent: ChromaAgent = new ChromaAgent();
-  await chromaAgent.createCollection("filtered_global_temperatures","C:/salesforce/repos/Claude tools/out.csv");
+ // const chromaAgent: ChromaAgent = new ChromaAgent();
+ // await chromaAgent.createCollection("price_histogram","C:/salesforce/repos/Claude tools/out.csv", "");//filtered_global_temperatures
+}
+
+/***************************************************
+ * Change the bin data as Records to strings to be stored 
+ * in ChromaDB
+ */
+export async function updateChromaDB(records: Record<string, number>[]){
+  const data = await stringifyBinRecords(records, "price");
+  const chromaAgent: ChromaAgent = new ChromaAgent(); 
+  await chromaAgent.createVectorStoreEmbedding("price_histogram_llama", data);
+}
+
+export async function loadCSVFile_(input: any, prevData: Record<string,number>[]){
+  console.log("INPUT....LLAMA", input)
+
+  let consolidated: Record<string, number>[] = await getBinNumbers(str0, prevData, 0);
+  prevData = consolidated;
+ console.log("DATS", prevData)
+ /*consolidated =  await getBinNumbers(str2, prevData, 1);
+ prevData = consolidated;
+  consolidated =  await getBinNumbers(str3, prevData, 2);
+ prevData = consolidated;
+  consolidated =  await getBinNumbers(str4, prevData, 3);
+ prevData = consolidated;
+  consolidated =  await getBinNumbers(str4, prevData, 4);
+ prevData = consolidated;
+  consolidated =  await getBinNumbers(str5, prevData, 4);
+  prevData = consolidated;*/
+   
+  return consolidated;
+}
+
+export async function getBinNumbers(response: string, prevData: Record<string,number>[], pos: number){
+  let consolidated: Record<string, number>[] = await getBinData(response, prevData,pos );
+  return consolidated;
+}
+
+async function queryVectorStore(input: string,document: Document){
+  let result = "";
+  try{
+    const index = await VectorStoreIndex.fromDocuments([document]);
+     const loadedQueryEngine = index.asQueryEngine();
+     const response = await loadedQueryEngine.query({
+       query: input,
+    });
+    result = response.toString();
+   } catch (e) {
+     console.error(e);
+   }
+   return result;
+}
+
+export async function delChromaCollectionIds(name: string)
+{
+  const ids: string[] = [];
+  const client: ChromaClient = new ChromaClient({})
+  const embeddingFunction = new OpenAIEmbeddingFunction({
+    openai_api_key: process.env["OPENAI_API_KEY"] as string,
+    openai_model: "text-embedding-3-small"
+  });
+  const collection = await client.getCollection({name: name, 
+    embeddingFunction: embeddingFunction});
+  const count = await collection.count();
+  for(let i = 0; i < count; i++){
+    let id = `chunk_${i}`;
+    ids.push(id);
+  }
+  if(ids.length > 0){
+    console.log("here del   ")
+    const client = new ChromaAgent();
+    await client.delCollection(name, ids);
+  } else{
+    console.log("here del  NOT ")
+  }
+  
+}
+
+async function updateVectorStore(name: string, index: number,list: string ){
+  const client: ChromaClient = new ChromaClient({});
+  const embeddingFunction = new OpenAIEmbeddingFunction({
+    openai_api_key: process.env["OPENAI_API_KEY"] as string,
+    openai_model: "text-embedding-3-small"
+  })
+ 
+  const collection = await client.getCollection({name: name, 
+    embeddingFunction: embeddingFunction});
+    const results = await collection.get({
+      ids: `chunk_${index}`,
+    });
+    const input = "There are 2 lists of unique numbers and their frequency in the lists. One is your list. The other is an input list: " 
+    + list + `. This list is a string which can be parsed as a list looking for the new line delimiter ('\n'). Look for the delimiters to find a number and frequency. Your task is look at each item of the input list, check if you have that unique number and if you do 
+    add the frequency of that number to your unique number. 
+    If there are no occurrences in your list of this item from the input list then just add it to the bottom of your list. Return the consolidated list`
+    let doc = results.documents[0]?.toString();
+    const document: Document = new Document({ text: doc, id_: "user_manual", metadata: {svgId: "111"}})
+    const ind = await VectorStoreIndex.fromDocuments([document]);
+    const loadedQueryEngine = ind.asQueryEngine();
+    const response = await loadedQueryEngine.query({
+      query: input,
+   });
+  /*  const results_ = await collection.query({nResults: 1, 
+       // where: {"ids": `chunk_${index}`}, 
+        queryTexts: ["Using this list of numbers: " + list + `. For each item in the list there is a unique number and its frequency. 
+          Find the same numbers in your list and increment your unique number with the number of occurrences
+          in the input list. If there are no occurrences in your list just add it to the bottom of your list. Return the consolidated list`], });
+*/
+        console.log("GET CSV DATA ", response)
+
+  //  let doc = results.documents[0]?.toString();
+  
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 export {};
