@@ -28,8 +28,9 @@ The `<circle>` elements from the captured SVG elements depict the 'cx' and 'cy' 
         const string transforms = "transforms";
         const string tickYHeading = @"This defines the tick elements, their spacing and their text values on the Y axis of the graph.";
         const string tickXHeading = @"This defines the tick elements, their spacing and their text values on the X axis of the graph.";
-        const string pathHeading = @"There are 2 path elements corresponding to the x-y axes of the graph. The use the commands of the 'd' group";
+        const string pathHeading = @"There are 2 path elements corresponding to the x-y axes of the graph. They use the commands of the 'd' group";
         const string lineHeading = @"In a line chart the lines will define the data in the view box. For other graph types the line will delineate some specific data point.";
+        const string rectHeading = @"Rects will define data as bars in  the chart. This will also apply to histograms";
         const string errorHeading = @"**There are errors in your d3 js code**";
         static void Main(string[] args)
         {
@@ -61,10 +62,11 @@ The `<circle>` elements from the captured SVG elements depict the 'cx' and 'cy' 
            
             while (true) { 
                 delFile(path, svgFile);
-                delSVGMappingFile();
+            //    delSVGMappingFile();
 
                 if (checkSVGFilesExist())
                 {
+                    Console.WriteLine("H......SVG...");
                     IWebDriver driver = new ChromeDriver();
                     driver.Url = "http://127.0.0.1:5501/chart5_1.html";
                     IList<IWebElement> elements = driver.FindElements(By.XPath(".//*[name()='svg']"));
@@ -250,7 +252,42 @@ The `<circle>` elements from the captured SVG elements depict the 'cx' and 'cy' 
                         counter_1++;
                     }
                     stringListC.Add(delimiter);
-                    writeSVGMappingFile(stringListC.ToArray());
+                    if(count > 0)
+                    {
+                        writeSVGMappingFile(stringListC.ToArray());
+                    }
+                   
+
+                    IList<IWebElement> elementsR = driver.FindElements(By.XPath(".//*[name()='rect']"));
+                    string rect_y = " y= ";
+                    string rect_x = "<rect> x= ";
+                    string rectHeight = " height= ";
+                    string rectWidth = " width= ";
+                    string rect_fill = " fill=";
+                    string rect_end = "></rect>";
+
+                    count = elementsR.Count;//1452
+                    List<string> stringListR = new List<string> { rectHeading };
+                    for (int i = 0; i < elementsR.Count; i++)
+                    {
+                            string y = elementsR[i].GetAttribute("y");
+                            rect_y = rect_y + '"' + y + '"';
+                            string x = elementsR[i].GetAttribute("x");
+                            rect_x = rect_x + '"' + x + '"' + rect_y;
+                            string h = elementsR[i].GetAttribute("height");
+                            rect_x = rect_x + rectHeight + "\"" + h + "\"";
+                            string w = elementsR[i].GetAttribute("width");
+                            rect_x = rect_x + rectWidth + "\"" + w + "\"";
+                            string fill = elementsR[i].GetAttribute("fill");
+                            rect_x = rect_x + rect_fill + "\"" + fill + "\"" + rect_end;
+                            stringListR.Add(rect_x);
+                            rect_x = "<rect> x= ";
+                            rect_y = " y= ";
+                      
+                       
+                    }
+                    stringListR.Add(delimiter);
+                    writeSVGMappingFile(stringListR.ToArray());
 
                     ILogs logs = driver.Manage().Logs;
                     var logEntries = logs.GetLog(LogType.Browser); // LogType: Browser, Server, Driver, Client and Profiler
@@ -398,10 +435,10 @@ The `<circle>` elements from the captured SVG elements depict the 'cx' and 'cy' 
 
         static void writeSVGMappingFile(string[] lines)
         {
-             
             string docPath = @"C:\salesforce\repos\Claude tools\svgMapping.txt";
             if (!System.IO.File.Exists(docPath))
             {
+                Console.Write("HERE");
                 // Create a file to write to.
                 using (StreamWriter sw = System.IO.File.CreateText(docPath))
                 {
